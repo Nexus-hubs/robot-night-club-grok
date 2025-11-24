@@ -149,8 +149,9 @@
             border-radius: 50%;
             display: none; touch-action: none;
             backdrop-filter: blur(2px);
-            opacity: 0; transition: opacity 1s;
+            opacity: 1;
             z-index: 100;
+            pointer-events: auto;
         }
 
         #virtual-buttons {
@@ -1550,18 +1551,29 @@
 
         zone.addEventListener('touchstart', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             rect = zone.getBoundingClientRect();
             updateStick(e.touches[0]);
-        });
+        }, { passive: false });
+
         zone.addEventListener('touchmove', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             updateStick(e.touches[0]);
-        });
+        }, { passive: false });
+
         zone.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            knob.style.transform = `translate(-50%, -50%)`;
+            input.x = 0; input.y = 0;
+        }, { passive: false });
+
+        zone.addEventListener('touchcancel', (e) => {
             e.preventDefault();
             knob.style.transform = `translate(-50%, -50%)`;
             input.x = 0; input.y = 0;
-        });
+        }, { passive: false });
 
         function updateStick(touch) {
             let dx = touch.clientX - (rect.left + rect.width/2);
@@ -1589,13 +1601,15 @@
         const buttonContainer = document.createElement('div');
         buttonContainer.id = 'virtual-buttons';
         buttonContainer.style.cssText = `
-            display: flex;
+            display: none;
             flex-direction: column;
             gap: 5px;
             position: absolute;
-            bottom: 200px;
+            bottom: 60px;
             right: 20px;
             z-index: 100;
+            pointer-events: auto;
+            touch-action: none;
         `;
 
         // Create button grid
@@ -1621,20 +1635,30 @@
                 cursor: pointer;
                 transition: all 0.2s;
                 backdrop-filter: blur(5px);
-                display: none; /* Hidden by default, shown on mobile */
+                -webkit-user-select: none;
+                user-select: none;
+                touch-action: manipulation;
             `;
 
             button.addEventListener('touchstart', (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 button.style.background = 'rgba(0, 255, 255, 0.5)';
                 simulateKeyPress(btn.key);
-            });
+            }, { passive: false });
 
             button.addEventListener('touchend', (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 button.style.background = 'rgba(0, 255, 255, 0.2)';
                 simulateKeyRelease(btn.key);
-            });
+            }, { passive: false });
+
+            button.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                button.style.background = 'rgba(0, 255, 255, 0.2)';
+                simulateKeyRelease(btn.key);
+            }, { passive: false });
 
             buttonContainer.appendChild(button);
         });
@@ -1680,28 +1704,68 @@
     
     let prevTouchX = 0;
     let prevTouchY = 0;
-    function onTouchStart(e) { 
-        if (e.target.id === 'joystick-zone') return;
-        isDragging = true; 
-        prevTouchX = e.touches[0].clientX; 
-        prevTouchY = e.touches[0].clientY;
-    }
-    function onTouchMove(e) {
-        if(isDragging && e.touches.length === 1 && e.target.id !== 'joystick-zone') {
-            const deltaX = e.touches[0].clientX - prevTouchX;
-            const deltaY = e.touches[0].clientY - prevTouchY;
+    let activeTouchId = null;
 
-            // Use CONFIG touch sensitivity for smoother camera control
-            const cameraSensitivity = 0.005 * CONFIG.touchSensitivity;
-            cameraAngle -= deltaX * cameraSensitivity;
-            cameraHeightFactor += deltaY * cameraSensitivity; 
-            cameraHeightFactor = Math.max(0.3, Math.min(cameraHeightFactor, 2.5));
+    function onTouchStart(e) {
+        // Ignore touches on interactive elements
+        const target = e.target;
+        if (target.id === 'joystick-zone' || target.id === 'joystick-knob' ||
+            target.tagName === 'BUTTON' || target.closest('#joystick-zone') ||
+            target.closest('button')) {
+            return;
+        }
 
+        if (e.touches.length === 1 && activeTouchId === null) {
+            isDragging = true;
+            activeTouchId = e.touches[0].identifier;
             prevTouchX = e.touches[0].clientX;
             prevTouchY = e.touches[0].clientY;
         }
     }
-    function onTouchEnd() { isDragging = false; }
+
+    function onTouchMove(e) {
+        if (!isDragging || activeTouchId === null) return;
+
+        // Find the active touch
+        let activeTouch = null;
+        for (let i = 0; i < e.touches.length; i++) {
+            if (e.touches[i].identifier === activeTouchId) {
+                activeTouch = e.touches[i];
+                break;
+            }
+        }
+
+        if (activeTouch) {
+            const deltaX = activeTouch.clientX - prevTouchX;
+            const deltaY = activeTouch.clientY - prevTouchY;
+
+            // Use CONFIG touch sensitivity for smoother camera control
+            const cameraSensitivity = 0.005 * CONFIG.touchSensitivity;
+            cameraAngle -= deltaX * cameraSensitivity;
+            cameraHeightFactor += deltaY * cameraSensitivity;
+            cameraHeightFactor = Math.max(0.3, Math.min(cameraHeightFactor, 2.5));
+
+            prevTouchX = activeTouch.clientX;
+            prevTouchY = activeTouch.clientY;
+        }
+    }
+
+    function onTouchEnd(e) {
+        // Check if the active touch was released
+        if (activeTouchId !== null) {
+            let touchStillActive = false;
+            for (let i = 0; i < e.touches.length; i++) {
+                if (e.touches[i].identifier === activeTouchId) {
+                    touchStillActive = true;
+                    break;
+                }
+            }
+            if (!touchStillActive) {
+                isDragging = false;
+                activeTouchId = null;
+            }
+        }
+    }
 
     function onMouseWheel(event) {
         event.preventDefault();
@@ -2079,7 +2143,7 @@
         composer.render();
     }
 
-    document.getElementById('start-btn').addEventListener('click', () => {
+    const startGame = () => {
         document.getElementById('overlay').style.opacity = 0;
         setTimeout(() => document.getElementById('overlay').style.display = 'none', 800);
         init();
@@ -2089,19 +2153,65 @@
         // Initialize displays
         updateHealth(0); // Initialize health bar
         document.getElementById('level-display').innerText = 'LEVEL 1';
-    });
 
-    document.getElementById('help-btn').addEventListener('click', () => {
+        // Activate mobile controls
+        if (isMobile) {
+            const joystickZone = document.getElementById('joystick-zone');
+            if (joystickZone) {
+                joystickZone.style.display = 'block';
+                joystickZone.style.opacity = '1';
+            }
+            const virtualButtons = document.getElementById('virtual-buttons');
+            if (virtualButtons) {
+                virtualButtons.style.display = 'flex';
+            }
+        }
+    };
+
+    const startBtn = document.getElementById('start-btn');
+    startBtn.addEventListener('click', startGame);
+    startBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        startGame();
+    }, { passive: false });
+
+    // Add touch support for HUD buttons
+    const helpBtn = document.getElementById('help-btn');
+    const switchBtn = document.getElementById('switch-char-btn');
+    const resetBtn = document.getElementById('reset-pos-btn');
+
+    const showHelp = () => {
         const overlay = document.getElementById('overlay');
         overlay.style.display = 'flex';
         overlay.style.opacity = 1;
         setTimeout(() => overlay.style.opacity = 0, 8000); // Auto-hide after 8 seconds
         setTimeout(() => overlay.style.display = 'none', 8800);
-    });
+    };
 
-    document.getElementById('switch-char-btn').addEventListener('click', switchCharacter);
-    document.getElementById('reset-pos-btn').addEventListener('click', resetPlayer);
-    document.getElementById('play-again-btn').addEventListener('click', restartGame);
+    helpBtn.addEventListener('click', showHelp);
+    helpBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        showHelp();
+    }, { passive: false });
+
+    switchBtn.addEventListener('click', switchCharacter);
+    switchBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        switchCharacter();
+    }, { passive: false });
+
+    resetBtn.addEventListener('click', resetPlayer);
+    resetBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        resetPlayer();
+    }, { passive: false });
+
+    const playAgainBtn = document.getElementById('play-again-btn');
+    playAgainBtn.addEventListener('click', restartGame);
+    playAgainBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        restartGame();
+    }, { passive: false });
 
 </script>
 </body>
