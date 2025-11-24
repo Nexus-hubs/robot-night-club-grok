@@ -144,24 +144,18 @@
         #joystick-zone {
             position: absolute; bottom: 60px; left: 60px;
             width: 160px; height: 160px;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: radial-gradient(circle, rgba(0, 255, 255, 0.08) 0%, rgba(0, 255, 255, 0.02) 70%, transparent 100%);
+            border: 2px solid rgba(0, 255, 255, 0.3);
             border-radius: 50%;
             display: none; touch-action: none;
             backdrop-filter: blur(2px);
             opacity: 1;
             z-index: 100;
             pointer-events: auto;
-        }
-
-        #virtual-buttons {
-            display: none;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2), inset 0 0 20px rgba(0, 255, 255, 0.1);
         }
 
         @media (max-width: 768px) {
-            #virtual-buttons {
-                display: flex !important;
-            }
             #joystick-zone {
                 width: 180px;
                 height: 180px;
@@ -170,12 +164,13 @@
         #joystick-knob {
             position: absolute; top: 50%; left: 50%;
             width: 60px; height: 60px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.5);
+            background: radial-gradient(circle, rgba(0, 255, 255, 0.4) 0%, rgba(0, 255, 255, 0.2) 100%);
+            border: 2px solid rgba(0, 255, 255, 0.8);
             border-radius: 50%;
             transform: translate(-50%, -50%);
             pointer-events: none;
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.2);
+            transition: all 0.1s ease;
         }
 
         #win-screen {
@@ -455,7 +450,10 @@
 
         speak: function(text, pitch = 1.0, isMCP = false) {
             if (!window.speechSynthesis) return;
+
+            // Cancel any ongoing speech
             window.speechSynthesis.cancel();
+
             const u = new SpeechSynthesisUtterance(text);
 
             // Set English language and natural voice settings
@@ -464,34 +462,59 @@
             u.pitch = 1.0; // Normal pitch
             u.volume = 0.8;
 
-            // Try to find a natural English voice
-            const voices = window.speechSynthesis.getVoices();
-            const englishVoice = voices.find(voice =>
-                voice.lang.startsWith('en') &&
-                !voice.name.toLowerCase().includes('robot') &&
-                !voice.name.toLowerCase().includes('computer')
-            );
+            // Function to set voice and speak
+            const setVoiceAndSpeak = () => {
+                const voices = window.speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    // Try to find a natural English voice
+                    const englishVoice = voices.find(voice =>
+                        voice.lang.startsWith('en') &&
+                        !voice.name.toLowerCase().includes('robot') &&
+                        !voice.name.toLowerCase().includes('computer')
+                    );
 
-            if (englishVoice) {
-                u.voice = englishVoice;
-            }
+                    if (englishVoice) {
+                        u.voice = englishVoice;
+                    }
+                }
 
-            if (isMCP) {
-                // MCP voice - still slightly robotic but more natural
-                u.rate = 0.8;
-                u.pitch = 0.8;
-                u.volume = 1.0;
-                const sub = document.getElementById('mcp-subtitles');
-                sub.innerText = text; sub.style.opacity = 1;
-                sub.style.textShadow = `2px 0 0 #ff0044, -2px 0 0 #00ffff`;
-                setTimeout(() => { sub.style.opacity = 0; }, 3500);
+                if (isMCP) {
+                    // MCP voice - still slightly robotic but more natural
+                    u.rate = 0.8;
+                    u.pitch = 0.8;
+                    u.volume = 1.0;
+                    const sub = document.getElementById('mcp-subtitles');
+                    if (sub) {
+                        sub.innerText = text;
+                        sub.style.opacity = 1;
+                        sub.style.textShadow = `2px 0 0 #ff0044, -2px 0 0 #00ffff`;
+                        setTimeout(() => { sub.style.opacity = 0; }, 3500);
+                    }
+                } else {
+                    // Player/feedback voices - more natural
+                    u.rate = 1.0;
+                    u.pitch = pitch;
+                    u.volume = 0.6;
+                }
+
+                // For Chrome mobile, resume audio context first
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume().then(() => {
+                        window.speechSynthesis.speak(u);
+                    });
+                } else {
+                    window.speechSynthesis.speak(u);
+                }
+            };
+
+            // Chrome loads voices asynchronously, wait for them if needed
+            if (window.speechSynthesis.getVoices().length === 0) {
+                window.speechSynthesis.onvoiceschanged = () => {
+                    setVoiceAndSpeak();
+                };
             } else {
-                // Player/feedback voices - more natural
-                u.rate = 1.0;
-                u.pitch = pitch;
-                u.volume = 0.6;
+                setVoiceAndSpeak();
             }
-            window.speechSynthesis.speak(u);
         },
 
         playAcidBass: function(freq, dur, vol, accent = false) {
@@ -1583,102 +1606,11 @@
             knob.style.transform = `translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px))`;
 
             // Use CONFIG touch sensitivity for better control
+            // Fixed joystick logic: right = positive x, up = negative y (intuitive controls)
             const sensitivity = CONFIG.touchSensitivity;
             input.x = (Math.cos(angle)*dist)/maxDist * sensitivity;
-            input.y = (Math.sin(angle)*dist)/maxDist * sensitivity;
+            input.y = -(Math.sin(angle)*dist)/maxDist * sensitivity; // Inverted Y for intuitive up/down
         }
-
-        // Add virtual direction buttons for mobile
-        if (isMobile) {
-            createVirtualButtons();
-        }
-    }
-
-    function createVirtualButtons() {
-        const controlsContainer = document.getElementById('controls-box');
-
-        // Create direction buttons container
-        const buttonContainer = document.createElement('div');
-        buttonContainer.id = 'virtual-buttons';
-        buttonContainer.style.cssText = `
-            display: none;
-            flex-direction: column;
-            gap: 5px;
-            position: absolute;
-            bottom: 60px;
-            right: 20px;
-            z-index: 100;
-            pointer-events: auto;
-            touch-action: none;
-        `;
-
-        // Create button grid
-        const buttons = [
-            { id: 'up-btn', symbol: '↑', key: 'ArrowUp' },
-            { id: 'left-btn', symbol: '←', key: 'ArrowLeft' },
-            { id: 'right-btn', symbol: '→', key: 'ArrowRight' },
-            { id: 'down-btn', symbol: '↓', key: 'ArrowDown' }
-        ];
-
-        buttons.forEach(btn => {
-            const button = document.createElement('button');
-            button.id = btn.id;
-            button.innerHTML = btn.symbol;
-            button.style.cssText = `
-                width: 50px;
-                height: 50px;
-                background: rgba(0, 255, 255, 0.2);
-                border: 1px solid rgba(0, 255, 255, 0.5);
-                color: #fff;
-                font-size: 24px;
-                border-radius: 8px;
-                cursor: pointer;
-                transition: all 0.2s;
-                backdrop-filter: blur(5px);
-                -webkit-user-select: none;
-                user-select: none;
-                touch-action: manipulation;
-            `;
-
-            button.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                button.style.background = 'rgba(0, 255, 255, 0.5)';
-                simulateKeyPress(btn.key);
-            }, { passive: false });
-
-            button.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                button.style.background = 'rgba(0, 255, 255, 0.2)';
-                simulateKeyRelease(btn.key);
-            }, { passive: false });
-
-            button.addEventListener('touchcancel', (e) => {
-                e.preventDefault();
-                button.style.background = 'rgba(0, 255, 255, 0.2)';
-                simulateKeyRelease(btn.key);
-            }, { passive: false });
-
-            buttonContainer.appendChild(button);
-        });
-
-        controlsContainer.appendChild(buttonContainer);
-
-        // Show virtual buttons on mobile
-        if (isMobile) {
-            document.getElementById('virtual-buttons').style.display = 'block';
-        }
-    }
-
-    function simulateKeyPress(key) {
-        const event = new KeyboardEvent('keydown', { key: key });
-        document.dispatchEvent(event);
-    }
-
-    function simulateKeyRelease(key) {
-        const event = new KeyboardEvent('keyup', { key: key });
-        document.dispatchEvent(event);
     }
 
     function onMouseDown(e) { 
@@ -2154,16 +2086,12 @@
         updateHealth(0); // Initialize health bar
         document.getElementById('level-display').innerText = 'LEVEL 1';
 
-        // Activate mobile controls
+        // Activate mobile joystick
         if (isMobile) {
             const joystickZone = document.getElementById('joystick-zone');
             if (joystickZone) {
                 joystickZone.style.display = 'block';
                 joystickZone.style.opacity = '1';
-            }
-            const virtualButtons = document.getElementById('virtual-buttons');
-            if (virtualButtons) {
-                virtualButtons.style.display = 'flex';
             }
         }
     };
