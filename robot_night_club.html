@@ -256,7 +256,7 @@
         <div class="instruction-item"><span class="inst-icon">🎯</span> Collect green cursors (+100) and avoid red ones (-50)</div>
         <div class="instruction-item"><span class="inst-icon">🚀</span> Use WASD/Arrow keys or joystick to move</div>
         <div class="instruction-item"><span class="inst-icon">🔄</span> Press C or click "Switch Unit" to change character</div>
-        <div class="instruction-item"><span class="inst-icon">👆</span> Drag to rotate camera, scroll to zoom</div>
+        <div class="instruction-item"><span class="inst-icon">👆</span> Drag to rotate camera, scroll/pinch to zoom</div>
         <div class="instruction-item"><span class="inst-icon">🚗</span> Tanks give a slight push - keep moving!</div>
         <div class="instruction-item"><span class="inst-icon">😢</span> Other enemies just make you sad - you can move away!</div>
         <div class="instruction-item"><span class="inst-icon">🎵</span> MCP is watching... survive as long as you can!</div>
@@ -284,10 +284,12 @@
 <div id="mcp-subtitles"></div>
 
 <div id="controls-box">
+    <button class="hud-btn" id="music-toggle-btn">Music: ON</button>
     <button class="hud-btn" id="help-btn">Help (?)</button>
     <button class="hud-btn" id="switch-char-btn">Switch Unit</button>
     <button class="hud-btn" id="reset-pos-btn">Reset Pos</button>
     <div class="hud-hint">Drag: Rotate/Tilt Camera</div>
+    <div class="hud-hint" style="margin-top: -5px;">Pinch: Zoom</div>
 </div>
 
 <div id="joystick-zone">
@@ -411,9 +413,12 @@
     let audioCtx;
     let isPlaying = false;
     let masterGain;
+    let musicGain;
+    let sfxGain;
     let delayNode;
     let noteIndex = 0;
     let measure = 0;
+    let musicEnabled = true;
     
     const BASS_SCALE = [65.41, 77.78, 98.00, 116.54, 130.81]; // C2 scale
     const LEAD_SCALE = [261.63, 311.13, 392.00, 466.16, 523.25, 622.25];
@@ -426,26 +431,44 @@
         init: function() {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             audioCtx = new AudioContext();
-            
+
+            // Master gain for overall volume
             masterGain = audioCtx.createGain();
-            masterGain.gain.value = 0.5; 
-            
+            masterGain.gain.value = 0.5;
+            masterGain.connect(audioCtx.destination);
+
+            // Separate gain nodes for music and sound effects
+            musicGain = audioCtx.createGain();
+            musicGain.gain.value = musicEnabled ? 1.0 : 0.0;
+            musicGain.connect(masterGain);
+
+            sfxGain = audioCtx.createGain();
+            sfxGain.gain.value = 1.0;
+            sfxGain.connect(masterGain);
+
+            // Delay effect for music
             delayNode = audioCtx.createDelay();
-            delayNode.delayTime.value = 0.375; 
+            delayNode.delayTime.value = 0.375;
             const delayFeedback = audioCtx.createGain();
             delayFeedback.gain.value = 0.4;
-            
+
             const delayFilter = audioCtx.createBiquadFilter();
-            delayFilter.frequency.value = 1000; 
+            delayFilter.frequency.value = 1000;
 
             delayNode.connect(delayFeedback);
             delayFeedback.connect(delayFilter);
             delayFilter.connect(delayNode);
-            delayNode.connect(masterGain);
-            masterGain.connect(audioCtx.destination);
+            delayNode.connect(musicGain);
 
             this.nextNoteTime = audioCtx.currentTime;
             this.scheduler();
+        },
+
+        toggleMusic: function() {
+            if (!audioCtx || !musicGain) return;
+            musicEnabled = !musicEnabled;
+            musicGain.gain.value = musicEnabled ? 1.0 : 0.0;
+            return musicEnabled;
         },
 
         speak: function(text, pitch = 1.0, isMCP = false) {
@@ -518,32 +541,32 @@
         },
 
         playAcidBass: function(freq, dur, vol, accent = false) {
-            if(!audioCtx) return;
+            if(!audioCtx || !musicGain) return;
             const t = audioCtx.currentTime;
             const osc = audioCtx.createOscillator();
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(freq, t);
             const filter = audioCtx.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.Q.value = accent ? 18 : 8; 
+            filter.Q.value = accent ? 18 : 8;
             const startFreq = accent ? 3000 : 800;
             const endFreq = 100;
             filter.frequency.setValueAtTime(startFreq, t);
             filter.frequency.exponentialRampToValueAtTime(endFreq, t + dur * 0.8);
             const gain = audioCtx.createGain();
             gain.gain.setValueAtTime(0.01, t);
-            gain.gain.linearRampToValueAtTime(vol * 0.8, t + 0.02); 
+            gain.gain.linearRampToValueAtTime(vol * 0.8, t + 0.02);
             gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
             osc.connect(filter);
             filter.connect(gain);
-            gain.connect(masterGain);
-            gain.connect(delayNode); 
+            gain.connect(musicGain); // Route music through musicGain
+            gain.connect(delayNode);
             osc.start(t);
             osc.stop(t + dur);
         },
 
         playTone: function(freq, type, dur, vol) {
-            if(!audioCtx) return;
+            if(!audioCtx || !sfxGain) return;
             const t = audioCtx.currentTime;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
@@ -553,13 +576,13 @@
             gain.gain.linearRampToValueAtTime(vol, t + 0.01);
             gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
             osc.connect(gain);
-            gain.connect(masterGain);
+            gain.connect(sfxGain); // Route sound effects through sfxGain
             osc.start(t);
             osc.stop(t + dur);
         },
 
         playNoise: function(type, dur, vol) {
-            if(!audioCtx) return;
+            if(!audioCtx || !musicGain) return;
             const t = audioCtx.currentTime;
             const bufferSize = audioCtx.sampleRate * dur;
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
@@ -571,16 +594,16 @@
             const gain = audioCtx.createGain();
             if (type === 'hat') {
                 filter.type = 'highpass'; filter.frequency.value = 8000;
-                gain.gain.setValueAtTime(vol * 0.7, t); 
+                gain.gain.setValueAtTime(vol * 0.7, t);
                 gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
             } else if (type === 'clap') {
                 filter.type = 'bandpass'; filter.frequency.value = 1200; filter.Q.value = 1;
                 gain.gain.setValueAtTime(vol * 0.8, t);
-                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15); 
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
             }
             noise.connect(filter);
             filter.connect(gain);
-            gain.connect(masterGain);
+            gain.connect(musicGain); // Route drums through musicGain
             if(type === 'clap') gain.connect(delayNode);
             noise.start(t);
         },
@@ -1637,6 +1660,8 @@
     let prevTouchX = 0;
     let prevTouchY = 0;
     let activeTouchId = null;
+    let lastTouchDistance = 0;
+    let isPinching = false;
 
     function onTouchStart(e) {
         // Ignore touches on interactive elements
@@ -1647,7 +1672,16 @@
             return;
         }
 
-        if (e.touches.length === 1 && activeTouchId === null) {
+        if (e.touches.length === 2) {
+            // Two-finger pinch to zoom
+            isPinching = true;
+            isDragging = false;
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            const dx = touch2.clientX - touch1.clientX;
+            const dy = touch2.clientY - touch1.clientY;
+            lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
+        } else if (e.touches.length === 1 && activeTouchId === null && !isPinching) {
             isDragging = true;
             activeTouchId = e.touches[0].identifier;
             prevTouchX = e.touches[0].clientX;
@@ -1656,6 +1690,25 @@
     }
 
     function onTouchMove(e) {
+        if (e.touches.length === 2 && isPinching) {
+            // Handle pinch-to-zoom
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            const dx = touch2.clientX - touch1.clientX;
+            const dy = touch2.clientY - touch1.clientY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (lastTouchDistance > 0) {
+                const delta = distance - lastTouchDistance;
+                // Adjust zoom based on pinch distance change
+                targetCameraZoom -= delta * 0.2;
+                targetCameraZoom = Math.max(10, Math.min(targetCameraZoom, 120));
+            }
+
+            lastTouchDistance = distance;
+            return;
+        }
+
         if (!isDragging || activeTouchId === null) return;
 
         // Find the active touch
@@ -1683,6 +1736,11 @@
     }
 
     function onTouchEnd(e) {
+        if (e.touches.length < 2) {
+            isPinching = false;
+            lastTouchDistance = 0;
+        }
+
         // Check if the active touch was released
         if (activeTouchId !== null) {
             let touchStillActive = false;
@@ -2104,9 +2162,16 @@
     }, { passive: false });
 
     // Add touch support for HUD buttons
+    const musicToggleBtn = document.getElementById('music-toggle-btn');
     const helpBtn = document.getElementById('help-btn');
     const switchBtn = document.getElementById('switch-char-btn');
     const resetBtn = document.getElementById('reset-pos-btn');
+
+    const toggleMusic = () => {
+        const enabled = audioSystem.toggleMusic();
+        musicToggleBtn.textContent = enabled ? 'Music: ON' : 'Music: OFF';
+        musicToggleBtn.style.color = enabled ? '#fff' : '#ff6666';
+    };
 
     const showHelp = () => {
         const overlay = document.getElementById('overlay');
@@ -2115,6 +2180,12 @@
         setTimeout(() => overlay.style.opacity = 0, 8000); // Auto-hide after 8 seconds
         setTimeout(() => overlay.style.display = 'none', 8800);
     };
+
+    musicToggleBtn.addEventListener('click', toggleMusic);
+    musicToggleBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        toggleMusic();
+    }, { passive: false });
 
     helpBtn.addEventListener('click', showHelp);
     helpBtn.addEventListener('touchend', (e) => {
