@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Robot Night Club - Neon Vector AGI Core</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: linear-gradient(135deg, #050510 0%, #0a0a20 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        .container {
+            text-align: center;
+            padding: 20px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: clamp(2rem, 8vw, 4rem);
+            font-weight: 700;
+            letter-spacing: 8px;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+            background: linear-gradient(90deg, #fff, #00ffff, #fff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { filter: drop-shadow(0 0 20px rgba(0, 255, 255, 0.4)); }
+            50% { filter: drop-shadow(0 0 40px rgba(0, 255, 255, 0.8)); }
+        }
+
+        .subtitle {
+            font-size: clamp(0.9rem, 3vw, 1.2rem);
+            color: #888;
+            letter-spacing: 4px;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+        }
+
+        .description {
+            margin: 30px 0;
+            font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+            color: #aaa;
+            line-height: 1.8;
+            letter-spacing: 1px;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+
+        .feature {
+            background: rgba(0, 255, 255, 0.05);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .feature:hover {
+            background: rgba(0, 255, 255, 0.1);
+            border-color: rgba(0, 255, 255, 0.4);
+            transform: translateY(-5px);
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .feature-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            color: #00ffff;
+        }
+
+        .feature-text {
+            font-size: 0.9rem;
+            color: #999;
+            letter-spacing: 1px;
+        }
+
+        .cta-button {
+            display: inline-block;
+            margin-top: 40px;
+            padding: 20px 60px;
+            background: rgba(0, 255, 255, 0.1);
+            border: 2px solid rgba(0, 255, 255, 0.5);
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: clamp(1rem, 3vw, 1.2rem);
+            letter-spacing: 6px;
+            font-weight: 600;
+            text-decoration: none;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+        }
+
+        .cta-button:hover {
+            background: rgba(0, 255, 255, 0.3);
+            box-shadow: 0 0 60px rgba(0, 255, 255, 0.6);
+            letter-spacing: 8px;
+            transform: scale(1.05);
+        }
+
+        .cta-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .cta-button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .controls-info {
+            margin-top: 40px;
+            padding: 20px;
+            background: rgba(5, 10, 20, 0.5);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 8px;
+        }
+
+        .controls-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            letter-spacing: 3px;
+            margin-bottom: 15px;
+            color: #00ffff;
+        }
+
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .control-row:last-child {
+            border-bottom: none;
+        }
+
+        .control-key {
+            font-weight: 600;
+            color: #00ffaa;
+            letter-spacing: 2px;
+        }
+
+        .control-desc {
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .features {
+                grid-template-columns: 1fr;
+            }
+
+            .control-row {
+                flex-direction: column;
+                gap: 5px;
+                text-align: center;
+            }
+
+            h1 {
+                letter-spacing: 4px;
+            }
+
+            .cta-button {
+                padding: 15px 40px;
+                letter-spacing: 4px;
+            }
+
+            .cta-button:hover {
+                letter-spacing: 5px;
+            }
+        }
+
+        .grid-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-background"></div>
+
+    <div class="container">
+        <h1>Robot Night Club</h1>
+        <div class="subtitle">Neon Vector // AGI Core</div>
+
+        <div class="description">
+            Enter a neon-lit cyberpunk world where robots dance, lasers pulse, and survival depends on your reflexes.
+            Navigate through an ever-evolving nightclub of AI entities, collect power-ups, and prove your worth in the machine realm.
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">🎮</div>
+                <div class="feature-title">Fluid Movement</div>
+                <div class="feature-text">Smooth, responsive controls optimized for both desktop and mobile</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🤖</div>
+                <div class="feature-title">AI Opponents</div>
+                <div class="feature-text">Navigate through dancing cursors, aggressive tanks, and unpredictable light cycles</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <div class="feature-title">Power-Ups</div>
+                <div class="feature-text">Collect shields, speed boosts, and score multipliers to enhance your abilities</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🎨</div>
+                <div class="feature-title">Neon Visuals</div>
+                <div class="feature-title">Stunning 3D graphics with bloom effects and particle systems</div>
+            </div>
+        </div>
+
+        <a href="robot_night_club.html" class="cta-button">
+            <span>Launch Game</span>
+        </a>
+
+        <div class="controls-info">
+            <div class="controls-title">Controls</div>
+            <div class="control-row">
+                <span class="control-key">WASD / Arrow Keys</span>
+                <span class="control-desc">Movement</span>
+            </div>
+            <div class="control-row">
+                <span class="control-key">Mouse Drag</span>
+                <span class="control-desc">Camera Rotation</span>
+            </div>
+            <div class="control-row">
+                <span class="control-key">Touch & Joystick</span>
+                <span class="control-desc">Mobile Controls</span>
+            </div>
+            <div class="control-row">
+                <span class="control-key">Dance Floor</span>
+                <span class="control-desc">Interact with glowing cursors for points</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
