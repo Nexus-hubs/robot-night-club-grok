@@ -210,11 +210,44 @@
         }
 
         @media (max-width: 768px) {
-            #joystick-zone { display: block; }
-            #score-board { top: 20px; right: 20px; transform: scale(0.7); transform-origin: top right; }
-            h1 { font-size: 2rem; letter-spacing: 5px; }
-            #controls-box { bottom: 80px; right: 20px; }
-            #mcp-subtitles { font-size: 1.2rem; top: 20%; }
+            #joystick-zone {
+                display: block;
+                width: 180px;
+                height: 180px;
+                bottom: 40px;
+                left: 40px;
+            }
+            #score-board {
+                top: 15px;
+                right: 15px;
+                transform: scale(0.65);
+                transform-origin: top right;
+            }
+            #ui-layer {
+                top: 15px;
+                left: 15px;
+                font-size: 10px;
+                gap: 6px;
+            }
+            h1 {
+                font-size: 1.8rem;
+                letter-spacing: 4px;
+            }
+            #controls-box {
+                bottom: 70px;
+                right: 15px;
+                transform: scale(0.9);
+            }
+            #mcp-subtitles {
+                font-size: 1.1rem;
+                top: 25%;
+                padding: 10px 20px;
+            }
+            button#start-btn {
+                padding: 15px 50px;
+                font-size: 16px;
+                letter-spacing: 4px;
+            }
         }
     </style>
 </head>
@@ -298,13 +331,26 @@
         accel: 180.0,       // Increased for faster movement
         friction: 3.5,      // Reduced for smoother movement
         // Reduce bloom on mobile for better performance
-        bloomStrength: isMobile ? 0.8 : 1.5,
-        bloomRadius: isMobile ? 0.3 : 0.6,
-        bloomThreshold: isMobile ? 0.25 : 0.15,
+        bloomStrength: isMobile ? 0.6 : 1.5,
+        bloomRadius: isMobile ? 0.25 : 0.6,
+        bloomThreshold: isMobile ? 0.3 : 0.15,
         // Mobile-specific performance settings
-        pixelRatio: isMobile ? 1 : Math.min(window.devicePixelRatio, 2),
-        particleMultiplier: isMobile ? 0.4 : 1.0,  // Reduce particles on mobile
-        maxParticles: isMobile ? 50 : 150  // Cap particle count on mobile
+        pixelRatio: isMobile ? Math.min(window.devicePixelRatio, 1.5) : Math.min(window.devicePixelRatio, 2),
+        particleMultiplier: isMobile ? 0.3 : 1.0,  // Reduce particles on mobile
+        maxParticles: isMobile ? 30 : 150,  // Cap particle count on mobile
+        // Geometry detail levels
+        geometryDetail: isMobile ? 'low' : 'high',
+        cylinderSegments: isMobile ? 8 : 16,
+        sphereSegments: isMobile ? 8 : 16,
+        torusSegments: isMobile ? 16 : 32,
+        // Shadow and lighting
+        enableShadows: !isMobile,  // Disable shadows on mobile
+        // FPS monitoring for dynamic quality
+        targetFPS: 30,
+        enableDynamicQuality: isMobile,
+        // Touch control sensitivity
+        touchSensitivity: isMobile ? 1.5 : 1.0,
+        joystickSize: isMobile ? 100 : 80
     };
 
     let camera, scene, renderer, composer;
@@ -337,6 +383,12 @@
     // Power-up system
     let speedBoostTimer = 0;
     let shieldTimer = 0;
+
+    // FPS Monitoring for dynamic quality adjustment
+    let frameCount = 0;
+    let lastFPSCheck = 0;
+    let currentFPS = 60;
+    let qualityLevel = isMobile ? 1 : 3; // 1=low, 2=medium, 3=high
     let scoreMultiplier = 1;
     let multiplierTimer = 0;
     
@@ -587,12 +639,23 @@
             antialias: !isMobile,  // Disable antialiasing on mobile
             powerPreference: "high-performance",
             stencil: false,  // Disable stencil buffer for performance
-            depth: true
+            depth: true,
+            logarithmicDepthBuffer: false,  // Disable for better performance
+            precision: isMobile ? 'mediump' : 'highp'  // Use medium precision on mobile
         });
         renderer.setPixelRatio(CONFIG.pixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.toneMapping = THREE.ReinhardToneMapping;
-        renderer.toneMappingExposure = isMobile ? 0.9 : 1.0;  // Slightly reduce exposure on mobile
+        renderer.toneMappingExposure = isMobile ? 0.85 : 1.0;  // Slightly reduce exposure on mobile
+        renderer.shadowMap.enabled = CONFIG.enableShadows;
+        if (CONFIG.enableShadows) {
+            renderer.shadowMap.type = THREE.BasicShadowMap;  // Use basic shadows for better performance
+        }
+        // Optimize renderer settings for mobile
+        if (isMobile) {
+            renderer.sortObjects = false;  // Disable sorting for better performance
+            renderer.physicallyCorrectLights = false;
+        }
         container.appendChild(renderer.domElement);
 
         scene = new THREE.Scene();
@@ -606,8 +669,8 @@
         const renderScene = new RenderPass(scene, camera);
         // Use lower resolution bloom on mobile for better performance
         const bloomResolution = new THREE.Vector2(
-            isMobile ? window.innerWidth * 0.5 : window.innerWidth,
-            isMobile ? window.innerHeight * 0.5 : window.innerHeight
+            isMobile ? window.innerWidth * 0.4 : window.innerWidth,
+            isMobile ? window.innerHeight * 0.4 : window.innerHeight
         );
         const bloomPass = new UnrealBloomPass(bloomResolution, 1.5, 0.4, 0.85);
         bloomPass.threshold = CONFIG.bloomThreshold;
@@ -616,6 +679,11 @@
         composer = new EffectComposer(renderer);
         composer.addPass(renderScene);
         composer.addPass(bloomPass);
+
+        // Reduce composer rendering quality on mobile
+        if (isMobile) {
+            composer.setPixelRatio(1);
+        }
 
         const ambient = new THREE.AmbientLight(0x404040, 2);
         scene.add(ambient);
@@ -674,19 +742,19 @@
             opacity: 0.7
         });
 
-        // Main head structure
-        const head = new THREE.Mesh(new THREE.CylinderGeometry(20, 20, 40, 16, 4, true), wireMat);
+        // Main head structure (use CONFIG for segment counts)
+        const head = new THREE.Mesh(new THREE.CylinderGeometry(20, 20, 40, CONFIG.cylinderSegments, 4, true), wireMat);
         head.rotation.x = Math.PI / 2; mcpEntity.add(head);
 
-        // Central core sphere
-        const core = new THREE.Mesh(new THREE.SphereGeometry(8, 16, 12), coreMat);
+        // Central core sphere (use CONFIG for segment counts)
+        const core = new THREE.Mesh(new THREE.SphereGeometry(8, CONFIG.sphereSegments, CONFIG.sphereSegments * 0.75), coreMat);
         core.position.z = 5; mcpEntity.add(core);
 
-        // Hat/cone structure
-        const hat = new THREE.Mesh(new THREE.ConeGeometry(20, 15, 16, 2, true), wireMat);
+        // Hat/cone structure (use CONFIG for segment counts)
+        const hat = new THREE.Mesh(new THREE.ConeGeometry(20, 15, CONFIG.cylinderSegments, 2, true), wireMat);
         hat.rotation.x = -Math.PI / 2; hat.position.z = -25; mcpEntity.add(hat);
 
-        // Enhanced eyes
+        // Enhanced eyes (use CONFIG for segment counts)
         const eyeGeo = new THREE.ConeGeometry(5, 12, 4);
         const eyeMat = new THREE.MeshStandardMaterial({
             color: 0xff0044,
@@ -697,12 +765,12 @@
         const leftEye = new THREE.Mesh(eyeGeo, eyeMat); leftEye.position.set(-8, 6, 18); leftEye.rotation.x = Math.PI/2; mcpEntity.add(leftEye);
         const rightEye = new THREE.Mesh(eyeGeo, eyeMat); rightEye.position.set(8, 6, 18); rightEye.rotation.x = Math.PI/2; mcpEntity.add(rightEye);
 
-        // Mouth
-        const mouth = new THREE.Mesh(new THREE.CylinderGeometry(10, 10, 2, 8, 1, true), wireMat);
+        // Mouth (use CONFIG for segment counts)
+        const mouth = new THREE.Mesh(new THREE.CylinderGeometry(10, 10, 2, CONFIG.cylinderSegments * 0.5, 1, true), wireMat);
         mouth.rotation.z = Math.PI/2; mouth.position.set(0, -10, 21); mcpEntity.add(mouth);
 
-        // Add rotating rings for extra effect
-        const ringGeo = new THREE.TorusGeometry(25, 1, 8, 32);
+        // Add rotating rings for extra effect (use CONFIG for segment counts)
+        const ringGeo = new THREE.TorusGeometry(25, 1, 4, CONFIG.torusSegments);
         const ringMat = new THREE.MeshBasicMaterial({
             color: 0x00ffff,
             transparent: true,
@@ -1153,6 +1221,43 @@
         particles = particles.filter(particle => particle.update(delta));
     }
 
+    // FPS Monitoring and Dynamic Quality Adjustment
+    function monitorPerformance(delta) {
+        if (!CONFIG.enableDynamicQuality) return;
+
+        frameCount++;
+        const currentTime = clock.elapsedTime;
+
+        // Check FPS every 2 seconds
+        if (currentTime - lastFPSCheck > 2.0) {
+            currentFPS = frameCount / (currentTime - lastFPSCheck);
+            frameCount = 0;
+            lastFPSCheck = currentTime;
+
+            // Adjust quality based on FPS
+            if (currentFPS < CONFIG.targetFPS - 5 && qualityLevel > 1) {
+                qualityLevel--;
+                adjustQuality();
+                console.log('Reducing quality to level', qualityLevel, 'FPS:', currentFPS.toFixed(1));
+            } else if (currentFPS > CONFIG.targetFPS + 10 && qualityLevel < 2) {
+                qualityLevel++;
+                adjustQuality();
+                console.log('Increasing quality to level', qualityLevel, 'FPS:', currentFPS.toFixed(1));
+            }
+        }
+    }
+
+    function adjustQuality() {
+        // Adjust particle limits based on quality level
+        if (qualityLevel === 1) {
+            CONFIG.maxParticles = 20;
+            CONFIG.particleMultiplier = 0.2;
+        } else if (qualityLevel === 2) {
+            CONFIG.maxParticles = 40;
+            CONFIG.particleMultiplier = 0.4;
+        }
+    }
+
     function updatePowerUps(delta) {
         // Update power-up timers
         if (speedBoostTimer > 0) {
@@ -1440,8 +1545,8 @@
         const knob = document.getElementById('joystick-knob');
         let rect;
 
-        // Make joystick larger and more responsive on mobile
-        const maxDist = isMobile ? 80 : 60; // Larger deadzone on mobile
+        // Make joystick larger and more responsive on mobile (use CONFIG settings)
+        const maxDist = CONFIG.joystickSize * 0.8; // 80% of joystick zone size
 
         zone.addEventListener('touchstart', (e) => {
             e.preventDefault();
@@ -1465,8 +1570,8 @@
             const angle = Math.atan2(dy, dx);
             knob.style.transform = `translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px))`;
 
-            // More sensitive on mobile for easier control
-            const sensitivity = isMobile ? 1.2 : 1.0;
+            // Use CONFIG touch sensitivity for better control
+            const sensitivity = CONFIG.touchSensitivity;
             input.x = (Math.cos(angle)*dist)/maxDist * sensitivity;
             input.y = (Math.sin(angle)*dist)/maxDist * sensitivity;
         }
@@ -1581,13 +1686,15 @@
         prevTouchX = e.touches[0].clientX; 
         prevTouchY = e.touches[0].clientY;
     }
-    function onTouchMove(e) { 
+    function onTouchMove(e) {
         if(isDragging && e.touches.length === 1 && e.target.id !== 'joystick-zone') {
             const deltaX = e.touches[0].clientX - prevTouchX;
             const deltaY = e.touches[0].clientY - prevTouchY;
-            
-            cameraAngle -= deltaX * 0.008;
-            cameraHeightFactor += deltaY * 0.008; 
+
+            // Use CONFIG touch sensitivity for smoother camera control
+            const cameraSensitivity = 0.005 * CONFIG.touchSensitivity;
+            cameraAngle -= deltaX * cameraSensitivity;
+            cameraHeightFactor += deltaY * cameraSensitivity; 
             cameraHeightFactor = Math.max(0.3, Math.min(cameraHeightFactor, 2.5));
 
             prevTouchX = e.touches[0].clientX;
@@ -1965,6 +2072,10 @@
         updateParticles(delta);
         audioSystem.updateTempo();
         lightCycles.forEach(c => c.update(delta));
+
+        // Monitor performance and adjust quality dynamically on mobile
+        monitorPerformance(delta);
+
         composer.render();
     }
 
