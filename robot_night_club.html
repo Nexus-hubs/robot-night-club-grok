@@ -360,6 +360,30 @@
     let lightCycles = [];
     let tanks = [];
     let drones = [];
+
+    // Dimension Configurations - 20 unique dimensions
+    const DIMENSIONS = [
+        { id: 1, name: "Neon Genesis", color: 0x00ffff, enemyColor: 0xff00ff, musicTempo: 120, enemySpeed: 1.0, theme: "cyber" },
+        { id: 2, name: "Crimson Void", color: 0xff0000, enemyColor: 0xffaa00, musicTempo: 140, enemySpeed: 1.2, theme: "fire" },
+        { id: 3, name: "Emerald Matrix", color: 0x00ff00, enemyColor: 0x00ffaa, musicTempo: 100, enemySpeed: 0.9, theme: "nature" },
+        { id: 4, name: "Violet Dream", color: 0x9900ff, enemyColor: 0xff00ff, musicTempo: 90, enemySpeed: 1.1, theme: "psychic" },
+        { id: 5, name: "Golden Realm", color: 0xffaa00, enemyColor: 0xff6600, musicTempo: 130, enemySpeed: 1.3, theme: "gold" },
+        { id: 6, name: "Azure Depth", color: 0x0066ff, enemyColor: 0x00aaff, musicTempo: 110, enemySpeed: 1.0, theme: "ocean" },
+        { id: 7, name: "Shadow Nexus", color: 0x333333, enemyColor: 0x666666, musicTempo: 150, enemySpeed: 1.4, theme: "dark" },
+        { id: 8, name: "Pink Dimension", color: 0xff66aa, enemyColor: 0xff0066, musicTempo: 125, enemySpeed: 1.1, theme: "candy" },
+        { id: 9, name: "Frost Zone", color: 0xaaffff, enemyColor: 0x66ccff, musicTempo: 95, enemySpeed: 0.8, theme: "ice" },
+        { id: 10, name: "Magma Core", color: 0xff3300, enemyColor: 0xff6600, musicTempo: 160, enemySpeed: 1.5, theme: "lava" },
+        { id: 11, name: "Toxic Swamp", color: 0x66ff00, enemyColor: 0x99ff00, musicTempo: 105, enemySpeed: 1.2, theme: "toxic" },
+        { id: 12, name: "Starlight Corridor", color: 0xffffaa, enemyColor: 0xffff66, musicTempo: 115, enemySpeed: 1.0, theme: "star" },
+        { id: 13, name: "Blood Moon", color: 0x990000, enemyColor: 0xcc0000, musicTempo: 135, enemySpeed: 1.3, theme: "blood" },
+        { id: 14, name: "Chrome City", color: 0xcccccc, enemyColor: 0xaaaaaa, musicTempo: 145, enemySpeed: 1.4, theme: "metal" },
+        { id: 15, name: "Void Between", color: 0x000033, enemyColor: 0x000066, musicTempo: 80, enemySpeed: 1.6, theme: "void" },
+        { id: 16, name: "Rainbow Chaos", color: 0xff00ff, enemyColor: 0x00ffff, musicTempo: 170, enemySpeed: 1.7, theme: "chaos" },
+        { id: 17, name: "Electric Storm", color: 0xffff00, enemyColor: 0xffaa00, musicTempo: 155, enemySpeed: 1.5, theme: "electric" },
+        { id: 18, name: "Deep Space", color: 0x000055, enemyColor: 0x0000aa, musicTempo: 85, enemySpeed: 1.8, theme: "space" },
+        { id: 19, name: "Quantum Flux", color: 0xaa00ff, enemyColor: 0xff00aa, musicTempo: 165, enemySpeed: 1.9, theme: "quantum" },
+        { id: 20, name: "Final Dimension", color: 0xffffff, enemyColor: 0x000000, musicTempo: 180, enemySpeed: 2.0, theme: "final" }
+    ];
     let mcpEntity; 
     
     // Inputs & Camera
@@ -377,6 +401,11 @@
     let health = 100;
     let level = 1;
     let gameWon = false;
+
+    // Dimensional Portal System
+    let currentDimension = 1;
+    let portal = null;
+    let portalActive = false;
 
     // Power-up system
     let speedBoostTimer = 0;
@@ -425,7 +454,8 @@
 
     const audioSystem = {
         nextNoteTime: 0,
-        tempo: 100, 
+        tempo: 100,
+        baseTempo: 120, // Base tempo from dimension config
         scheduleAheadTime: 0.1,
         
         init: function() {
@@ -616,14 +646,14 @@
             if(isPlaying) requestAnimationFrame(this.scheduler.bind(this));
         },
 
-        // Dynamic tempo based on game intensity
+        // Dynamic tempo based on game intensity and dimension
         updateTempo: function() {
-            // Base tempo increases with level and health decreases
-            const baseTempo = 100;
-            const levelBonus = level * 5;
+            // Use dimension-specific base tempo
+            const dimensionBaseTempo = this.baseTempo || 120;
+            const levelBonus = level * 3;
             const healthPenalty = (100 - health) * 0.2;
             const speedBonus = speedBoostTimer > 0 ? 20 : 0;
-            this.tempo = Math.min(180, baseTempo + levelBonus + healthPenalty + speedBonus);
+            this.tempo = Math.min(200, dimensionBaseTempo + levelBonus + healthPenalty + speedBonus);
         },
 
         nextNote: function() {
@@ -739,16 +769,19 @@
         scene.add(dirLight);
 
         createVectorEnvironment();
-        createMasterControlProgram(); 
-        
-        playerRobot = new VoxelRobot(0xff5500, 'INVADER'); 
+        createMasterControlProgram();
+
+        playerRobot = new VoxelRobot(0xff5500, 'INVADER');
         scene.add(playerRobot.mesh);
 
         createCursors(); // RESTORED VECTOR CURSORS
         createPowerUps();
-        createLightCycles();
-        createTanks();
-        createDrones(); 
+
+        // Initialize dimension 1 (Neon Genesis)
+        const dim1Config = DIMENSIONS[0];
+        spawnDimensionEnemies(dim1Config);
+        updateDimensionEnvironment(dim1Config);
+        audioSystem.baseTempo = dim1Config.musicTempo; 
 
         document.addEventListener('keydown', onKeyDown);
         document.addEventListener('keyup', onKeyUp);
@@ -1534,6 +1567,150 @@
         }
     }
 
+    // Dimensional Portal Class
+    class DimensionalPortal {
+        constructor(dimension) {
+            this.mesh = new THREE.Group();
+            this.dimension = dimension;
+            this.active = true;
+            this.animationTime = 0;
+
+            const dimConfig = DIMENSIONS[dimension - 1];
+            const portalColor = dimConfig.color;
+
+            // Create multiple rotating rings
+            const ringCount = 5;
+            this.rings = [];
+            for (let i = 0; i < ringCount; i++) {
+                const radius = 6 + i * 0.8;
+                const ringGeo = new THREE.TorusGeometry(radius, 0.3, 16, 64);
+                const ringMat = new THREE.MeshBasicMaterial({
+                    color: portalColor,
+                    wireframe: true,
+                    transparent: true,
+                    opacity: 0.8 - (i * 0.1)
+                });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI / 2;
+                this.rings.push(ring);
+                this.mesh.add(ring);
+            }
+
+            // Central glowing sphere
+            const coreGeo = new THREE.SphereGeometry(3, 32, 32);
+            const coreMat = new THREE.MeshBasicMaterial({
+                color: portalColor,
+                transparent: true,
+                opacity: 0.3,
+                wireframe: false
+            });
+            this.core = new THREE.Mesh(coreGeo, coreMat);
+            this.mesh.add(this.core);
+
+            // Add point light for glow effect
+            const portalLight = new THREE.PointLight(portalColor, 2, 30);
+            portalLight.position.set(0, 0, 0);
+            this.mesh.add(portalLight);
+
+            // Outer glow ring
+            const glowGeo = new THREE.TorusGeometry(10, 0.5, 16, 64);
+            const glowMat = new THREE.MeshBasicMaterial({
+                color: portalColor,
+                transparent: true,
+                opacity: 0.4
+            });
+            this.glow = new THREE.Mesh(glowGeo, glowMat);
+            this.glow.rotation.x = Math.PI / 2;
+            this.mesh.add(this.glow);
+
+            // Position portal above ground
+            this.mesh.position.set(0, 8, 0);
+
+            // Create portal particles
+            this.particles = [];
+            this.createParticles(portalColor);
+        }
+
+        createParticles(color) {
+            const particleCount = 30;
+            for (let i = 0; i < particleCount; i++) {
+                const particleGeo = new THREE.SphereGeometry(0.2, 8, 8);
+                const particleMat = new THREE.MeshBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const particle = new THREE.Mesh(particleGeo, particleMat);
+
+                // Random position in a spiral
+                const angle = (i / particleCount) * Math.PI * 4;
+                const radius = 5 + Math.random() * 3;
+                particle.position.x = Math.cos(angle) * radius;
+                particle.position.y = (Math.random() - 0.5) * 8;
+                particle.position.z = Math.sin(angle) * radius;
+
+                particle.userData = {
+                    angle: angle,
+                    radius: radius,
+                    speed: 0.5 + Math.random() * 0.5,
+                    verticalSpeed: (Math.random() - 0.5) * 2
+                };
+
+                this.particles.push(particle);
+                this.mesh.add(particle);
+            }
+        }
+
+        update(delta) {
+            if (!this.active) return;
+
+            this.animationTime += delta;
+
+            // Rotate rings at different speeds
+            this.rings.forEach((ring, index) => {
+                ring.rotation.z += delta * (1 + index * 0.3) * (index % 2 === 0 ? 1 : -1);
+            });
+
+            // Pulse the core
+            const pulseScale = 1 + Math.sin(this.animationTime * 2) * 0.2;
+            this.core.scale.set(pulseScale, pulseScale, pulseScale);
+            this.core.material.opacity = 0.3 + Math.sin(this.animationTime * 3) * 0.15;
+
+            // Rotate outer glow
+            this.glow.rotation.z += delta * 0.5;
+            this.glow.material.opacity = 0.4 + Math.sin(this.animationTime * 2) * 0.2;
+
+            // Animate particles in a vortex
+            this.particles.forEach(particle => {
+                const data = particle.userData;
+                data.angle += delta * data.speed;
+                data.radius = 5 + Math.sin(data.angle * 2) * 2;
+
+                particle.position.x = Math.cos(data.angle) * data.radius;
+                particle.position.z = Math.sin(data.angle) * data.radius;
+                particle.position.y += data.verticalSpeed * delta;
+
+                // Reset particle when it goes too far
+                if (particle.position.y > 10 || particle.position.y < -10) {
+                    particle.position.y = (Math.random() - 0.5) * 8;
+                }
+            });
+
+            // Bob the entire portal up and down slightly
+            this.mesh.position.y = 8 + Math.sin(this.animationTime) * 0.5;
+        }
+
+        destroy() {
+            this.active = false;
+            // Fade out effect
+            this.mesh.children.forEach(child => {
+                if (child.material) {
+                    child.material.transparent = true;
+                }
+            });
+        }
+    }
+
     function createLightCycles() {
         const colors = [0xffea00, 0x00aaff, 0xff00aa];
         // Reduce light cycles on mobile for better performance
@@ -1859,9 +2036,138 @@
         // Game continues forever - no game over condition
     }
 
+    // Portal and Dimension System Functions
+    function spawnPortal() {
+        // Only spawn if we haven't reached max dimensions and no portal is active
+        if (currentDimension >= 20 || portalActive) return;
+
+        const nextDimension = currentDimension + 1;
+        portal = new DimensionalPortal(nextDimension);
+        scene.add(portal.mesh);
+        portalActive = true;
+
+        const dimName = DIMENSIONS[nextDimension - 1].name;
+        audioSystem.speak(`Portal to ${dimName} has opened`, 1.0);
+
+        // Portal appearance effect
+        setTimeout(() => audioSystem.playTone(400, 'sine', 0.2, 0.5), 0);
+        setTimeout(() => audioSystem.playTone(600, 'sine', 0.2, 0.5), 100);
+        setTimeout(() => audioSystem.playTone(800, 'sine', 0.3, 0.6), 200);
+    }
+
+    function enterDimension(dimension) {
+        if (dimension > 20) {
+            // Beat the game!
+            audioSystem.speak("You have conquered all dimensions!", 1.0);
+            winGame();
+            return;
+        }
+
+        currentDimension = dimension;
+        const dimConfig = DIMENSIONS[dimension - 1];
+
+        // Update UI
+        document.getElementById('level-display').innerText = `DIMENSION ${dimension}: ${dimConfig.name}`;
+
+        // Announce dimension
+        audioSystem.speak(`Welcome to ${dimConfig.name}`, 1.0);
+
+        // Dimension entry sound
+        setTimeout(() => audioSystem.playTone(1200, 'sine', 0.3, 0.4), 0);
+        setTimeout(() => audioSystem.playTone(1400, 'sine', 0.3, 0.4), 100);
+        setTimeout(() => audioSystem.playTone(1600, 'sine', 0.4, 0.5), 200);
+
+        // Update audio system tempo based on dimension
+        audioSystem.baseTempo = dimConfig.musicTempo;
+
+        // Clear existing enemies
+        tanks.forEach(tank => scene.remove(tank.mesh));
+        tanks = [];
+        drones.forEach(drone => scene.remove(drone.mesh));
+        drones = [];
+        lightCycles.forEach(cycle => scene.remove(cycle.mesh));
+        lightCycles = [];
+
+        // Spawn new enemies with dimension-specific properties
+        spawnDimensionEnemies(dimConfig);
+
+        // Update environment colors
+        updateDimensionEnvironment(dimConfig);
+
+        // Remove portal
+        if (portal) {
+            scene.remove(portal.mesh);
+            portal = null;
+            portalActive = false;
+        }
+
+        // Reset player position
+        playerRobot.mesh.position.set(0, 2, 0);
+        playerRobot.velocity.set(0, 0, 0);
+    }
+
+    function spawnDimensionEnemies(dimConfig) {
+        const baseCount = isMobile ? 1 : 2;
+        const enemyMultiplier = Math.min(dimConfig.id * 0.3, 3); // Scale enemies with dimension
+
+        // Spawn tanks with dimension colors and speed
+        const tankCount = Math.floor(baseCount + dimConfig.id * 0.5);
+        for (let i = 0; i < tankCount; i++) {
+            const tank = new EnemyTank();
+            // Update tank color based on dimension
+            tank.mesh.children.forEach(child => {
+                if (child.material) {
+                    child.material.color.setHex(dimConfig.enemyColor);
+                }
+            });
+            tanks.push(tank);
+            scene.add(tank.mesh);
+        }
+
+        // Spawn drones with dimension properties
+        const droneCount = Math.floor(2 + dimConfig.id * 0.3);
+        for (let i = 0; i < droneCount; i++) {
+            const drone = new FlyingDrone();
+            // Update drone color
+            drone.mesh.children.forEach(child => {
+                if (child.material) {
+                    child.material.color.setHex(dimConfig.enemyColor);
+                }
+            });
+            drones.push(drone);
+            scene.add(drone.mesh);
+        }
+
+        // Spawn light cycles with dimension colors
+        const cycleCount = isMobile ? 3 : Math.min(6 + dimConfig.id, 12);
+        for (let i = 0; i < cycleCount; i++) {
+            const cycle = new LightCycle(dimConfig.enemyColor, i % 2 === 0 ? 'x' : 'z');
+            lightCycles.push(cycle);
+            scene.add(cycle.mesh);
+        }
+    }
+
+    function updateDimensionEnvironment(dimConfig) {
+        // Update grid colors
+        scene.children.forEach(child => {
+            if (child.type === 'GridHelper') {
+                child.material.color.setHex(dimConfig.color);
+            }
+        });
+
+        // Update ambient light color slightly
+        scene.children.forEach(child => {
+            if (child.type === 'AmbientLight') {
+                const r = ((dimConfig.color >> 16) & 255) / 255;
+                const g = ((dimConfig.color >> 8) & 255) / 255;
+                const b = (dimConfig.color & 255) / 255;
+                child.color.setRGB(r * 0.3, g * 0.3, b * 0.3);
+            }
+        });
+    }
+
     function levelUp(newLevel) {
         level = newLevel;
-        document.getElementById('level-display').innerText = `LEVEL ${level}`;
         audioSystem.speak(`Level ${level} achieved`, 1.0);
 
         // Level up fanfare
@@ -1869,21 +2175,9 @@
         setTimeout(() => audioSystem.playTone(1000, 'sine', 0.1, 0.3), 100);
         setTimeout(() => audioSystem.playTone(1200, 'sine', 0.2, 0.4), 200);
 
-        // Increase difficulty with levels - add fewer tanks since base count is lower
-        if (level > 1) {
-            // Add tanks more gradually (every 2 levels)
-            if (level % 2 === 0) {
-                const tank = new EnemyTank();
-                tanks.push(tank);
-                scene.add(tank.mesh);
-            }
-
-            // Add drones every other level
-            if (level % 2 === 0) {
-                const drone = new FlyingDrone();
-                drones.push(drone);
-                scene.add(drone.mesh);
-            }
+        // Spawn a portal every 3 levels (up to dimension 20)
+        if (level % 3 === 0 && currentDimension < 20 && !portalActive) {
+            spawnPortal();
         }
     }
 
@@ -1910,10 +2204,18 @@
         level = 1;
         gameWon = false;
 
+        // Reset dimensional portal system
+        currentDimension = 1;
+        if (portal) {
+            scene.remove(portal.mesh);
+            portal = null;
+        }
+        portalActive = false;
+
         // Reset UI
         document.getElementById('score-val').innerText = '0';
         document.getElementById('health-fill').style.width = '100%';
-        document.getElementById('level-display').innerText = 'LEVEL 1';
+        document.getElementById('level-display').innerText = 'DIMENSION 1: Neon Genesis';
         document.getElementById('win-screen').style.display = 'none';
 
         // Reset player
@@ -1922,17 +2224,16 @@
         // Clear enemies
         tanks.forEach(tank => scene.remove(tank.mesh));
         tanks = [];
-        // Recreate tanks with mobile-aware count
-        const tankCount = isMobile ? 1 : 2;
-        for (let i = 0; i < tankCount; i++) {
-            const tank = new EnemyTank();
-            tanks.push(tank);
-            scene.add(tank.mesh);
-        }
-
         drones.forEach(drone => scene.remove(drone.mesh));
         drones = [];
-        createDrones();
+        lightCycles.forEach(cycle => scene.remove(cycle.mesh));
+        lightCycles = [];
+
+        // Start in dimension 1
+        const dim1Config = DIMENSIONS[0];
+        spawnDimensionEnemies(dim1Config);
+        updateDimensionEnvironment(dim1Config);
+        audioSystem.baseTempo = dim1Config.musicTempo;
 
         // Reset cursors
         cursors.forEach(cursor => scene.remove(cursor));
@@ -1946,7 +2247,7 @@
 
         // Start game
         isPlaying = true;
-        audioSystem.speak("System restart initiated", 0.9, true);
+        audioSystem.speak("Welcome to Neon Genesis", 0.9, true);
     }
 
     function animate() {
@@ -2006,7 +2307,26 @@
                 }
             });
 
+            // Check portal collision
+            if (portal && portalActive && CollisionSystem.checkSphereCollision(
+                portal.mesh.position, 8.0,
+                playerRobot.mesh.position, 2.0
+            )) {
+                // Enter the next dimension
+                const nextDim = currentDimension + 1;
+                createParticleBurst(portal.mesh.position, DIMENSIONS[nextDim - 1].color, 30, 10);
+                enterDimension(nextDim);
+            }
+
+            // Update portal animation
+            if (portal && portalActive) {
+                portal.update(delta);
+            }
+
             // Update enemies
+            lightCycles.forEach(cycle => {
+                if (cycle.update) cycle.update(delta);
+            });
             [...tanks, ...lightCycles, ...drones].forEach(e => {
                 if(e.update && e instanceof EnemyTank) e.update(delta, playerRobot.mesh.position, playerRobot.velocity);
                 if(e.update && e instanceof FlyingDrone) e.update(delta, playerRobot.mesh.position);
@@ -2142,7 +2462,11 @@
 
         // Initialize displays
         updateHealth(0); // Initialize health bar
-        document.getElementById('level-display').innerText = 'LEVEL 1';
+        document.getElementById('level-display').innerText = 'DIMENSION 1: Neon Genesis';
+
+        // Initialize dimension system
+        currentDimension = 1;
+        portalActive = false;
 
         // Activate mobile joystick
         if (isMobile) {
