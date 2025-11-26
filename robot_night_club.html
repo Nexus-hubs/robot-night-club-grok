@@ -2175,8 +2175,8 @@
         setTimeout(() => audioSystem.playTone(1000, 'sine', 0.1, 0.3), 100);
         setTimeout(() => audioSystem.playTone(1200, 'sine', 0.2, 0.4), 200);
 
-        // Spawn a portal every 3 levels (up to dimension 20)
-        if (level % 3 === 0 && currentDimension < 20 && !portalActive) {
+        // Spawn a portal every 2 levels (up to dimension 20) - more frequent for easier testing
+        if (level % 2 === 0 && currentDimension < 20 && !portalActive) {
             spawnPortal();
         }
     }
@@ -2467,6 +2467,13 @@
         // Initialize dimension system
         currentDimension = 1;
         portalActive = false;
+
+        // Spawn initial portal after a short delay so player can test dimensions immediately
+        setTimeout(() => {
+            if (currentDimension < 20) {
+                spawnPortal();
+            }
+        }, 3000); // Spawn portal after 3 seconds
 
         // Activate mobile joystick
         if (isMobile) {
