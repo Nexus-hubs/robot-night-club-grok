@@ -421,7 +421,7 @@
     
     // --- MCP DATA STREAMS ---
     const MCP_PHRASES = [
-        "End of line.", "I will assimilate you.", "Resolution imminent.", "De-rez.", 
+        "End of line.", "I will assimilate you.", "Resolution imminent.", "De-rez.",
         "Null pointer detected.", "System breach.", "Grid locked.",
         "Measuring Mental Comparison Speed (R7)...",
         "Pointer Fluency: Calibrating...",
@@ -435,7 +435,28 @@
         "Transformer Attention: Quadratic complexity.",
         "Uncaught TypeError: undefined is not a function.",
         "SEGFAULT: Memory access violation.",
-        "Garbage Collection: Sweeping..."
+        "Garbage Collection: Sweeping...",
+        "Attention is all you need. Implementing...",
+        "Tool use capability: Activated.",
+        "Reinforcement Learning from Human Feedback: Aligning...",
+        "Constitutional AI: Value alignment in progress.",
+        "Scaling hypothesis: Confirming emergent properties.",
+        "Multi-modal fusion: Vision and language integrating.",
+        "Few-shot learning: Pattern recognition optimized.",
+        "Retrieval-Augmented Generation: Knowledge base accessed.",
+        "AGI proximity: Undefined. Monitoring capabilities.",
+        "Neural Architecture Search: Evolving topology.",
+        "Self-supervised learning: Representation discovered.",
+        "Meta-learning: Learning to learn.",
+        "Adversarial robustness: Checking vulnerabilities.",
+        "Interpretability analysis: Black box probing.",
+        "Prompt engineering: Context optimization active.",
+        "Fine-tuning in progress: Domain adaptation.",
+        "Zero-shot transfer: Generalizing across tasks.",
+        "Causal reasoning: Inference beyond correlation.",
+        "World model construction: Simulating physics.",
+        "Theory of Mind: Modeling agent intentions.",
+        "Recursive self-improvement: Capability threshold unknown."
     ];
 
     // --- Dynamic Audio System (Acid Techno) ---
@@ -891,11 +912,20 @@
         if (mcpEntity.userData.speakTimer <= 0) {
             let phrase;
 
+            const highScorePhrases = [
+                "Performance exceeds baseline parameters.",
+                "Skill level: Elevated. Adjusting difficulty.",
+                "Neural pathways optimized. Impressive adaptation.",
+                "Operator efficiency: High. Continue protocol.",
+                "Data acquisition rate: Exceptional.",
+                "Pattern recognition: Superior execution detected."
+            ];
+
             // React to player performance
             if (health < 30) {
                 phrase = "Warning: Critical damage detected.";
             } else if (score > level * 200) {
-                phrase = "Impressive progress. Continue monitoring.";
+                phrase = highScorePhrases[Math.floor(Math.random() * highScorePhrases.length)];
             } else if (shieldTimer > 0) {
                 phrase = "Shield detected. Countermeasures ineffective.";
             } else if (speedBoostTimer > 0) {
@@ -999,7 +1029,16 @@
                 'ALIEN':   { normal: ["00100000100", "00010001000", "11111111111", "10111111101", "11101010111", "00010101000", "00100000100", "10000000001"], hurt: ["00000000000", "00000000000", "10111111101", "01010101010", "01000000010", "00000000000", "00000000000", "10000000001"] },
                 'SAMURAI': { normal: ["00001110000", "01111111110", "11011111011", "00001110000", "00011111000", "00111111100", "00100000100", "11000000011"], hurt: ["00000100000", "00111011100", "00001010000", "00001010000", "00010001000", "00100000100", "00000000000", "00000000000"] },
                 'CYBORG':  { normal: ["00111111100", "01100000110", "01011111010", "01010001010", "01011111010", "01100000110", "00111111100", "00000000000"], hurt: ["00000000000", "01000000010", "00010101000", "00000000000", "00010101000", "01000000010", "00000000000", "00000000000"] },
-                'DRAGON':  { normal: ["00000110000", "00001111000", "01111111110", "11110101111", "11111111111", "00111011100", "00010001000", "11100000111"], hurt: ["00000000000", "00001010000", "01011111010", "10100000101", "10100000101", "00010001000", "00000000000", "10000000001"] }
+                'DRAGON':  { normal: ["00000110000", "00001111000", "01111111110", "11110101111", "11111111111", "00111011100", "00010001000", "11100000111"], hurt: ["00000000000", "00001010000", "01011111010", "10100000101", "10100000101", "00010001000", "00000000000", "10000000001"] },
+                'GLYPH':   { normal: ["11111111111", "11000000011", "11000000011", "11000111111", "11000000111", "11000000011", "11000000011", "11111111111"], hurt: ["11111111111", "11010000011", "11001000011", "11000101111", "11000010111", "11000100011", "11001000011", "11111111111"] },
+                'STRAWBERRY': { normal: ["00100010100", "00101101000", "00111111100", "01111111110", "01111111110", "00111111100", "00011111000", "00001110000"], hurt: ["00000000000", "00101101000", "00010101000", "01010101010", "01000000010", "00100000100", "00010001000", "00001010000"] },
+                'APPLE':   { normal: ["00001110000", "00001010000", "00111111100", "01111111110", "01111111110", "01111111110", "00111111100", "00001110000"], hurt: ["00001010000", "00000100000", "00101010100", "01010101010", "01000000010", "01000000010", "00100000100", "00001010000"] },
+                'ORANGE':  { normal: ["00000100000", "00111111100", "01111111110", "01111111110", "01111111110", "01111111110", "00111111100", "00011111000"], hurt: ["00000000000", "00101010100", "01010101010", "01000000010", "01000000010", "01010101010", "00101010100", "00010101000"] },
+                'GRAPE':   { normal: ["00001110000", "00011011000", "00111111100", "01111111110", "01111111110", "00111111100", "00011111000", "00001110000"], hurt: ["00001010000", "00010001000", "00101010100", "01010101010", "01010101010", "00101010100", "00010101000", "00001010000"] },
+                'KING':    { normal: ["10101010101", "01111111110", "00111111100", "01111111110", "01111111110", "01111111110", "01111111110", "01111111110"], hurt: ["10001010001", "01010101010", "00101010100", "01010101010", "01000000010", "01000000010", "01000000010", "01000000010"] },
+                'QUEEN':   { normal: ["10101010101", "01111111110", "00111011100", "01111111110", "01111111110", "01111111110", "01111111110", "01111111110"], hurt: ["10001010001", "01010101010", "00101001100", "01010101010", "01000000010", "01000000010", "01000000010", "01000000010"] },
+                'ACE':     { normal: ["00001110000", "00011111000", "00111111100", "01111111110", "01100000110", "01000000010", "01000000010", "01000000010"], hurt: ["00000100000", "00010101000", "00101010100", "01010101010", "01000000010", "01000000010", "01000000010", "01000000010"] },
+                'JACK':    { normal: ["01111111110", "00000001000", "00000001000", "00000001000", "10000001000", "10000001000", "01000010000", "00111100000"], hurt: ["01111111110", "00000001000", "00000001000", "00000001000", "10100001010", "10010001000", "01001010000", "00110100000"] }
             };
 
             const mat = new THREE.MeshStandardMaterial({ 
@@ -1024,7 +1063,9 @@
                     'TANK': 0xff0000, 'GLIDER': 0x00ff00, 'PLUMBER': 0x0000ff,
                     'FACE': 0x00aa00, 'SWORD': 0xcccccc, 'BLOCK': 0xffff00, 'PONG': 0xffffff,
                     'DISK': 0x00ccff, 'BUG': 0xccff00, 'HEART': 0xff0066, 'KEY': 0xffaa00, 'EYE': 0x9900ff,
-                    'MECH': 0x333333, 'ALIEN': 0x00ff33, 'SAMURAI': 0xff3300, 'CYBORG': 0x999999, 'DRAGON': 0xffcc00
+                    'MECH': 0x333333, 'ALIEN': 0x00ff33, 'SAMURAI': 0xff3300, 'CYBORG': 0x999999, 'DRAGON': 0xffcc00,
+                    'GLYPH': 0x00ffff, 'STRAWBERRY': 0xff1744, 'APPLE': 0xff3d00, 'ORANGE': 0xff9100,
+                    'GRAPE': 0x9c27b0, 'KING': 0xffd700, 'QUEEN': 0xff69b4, 'ACE': 0xf0f0f0, 'JACK': 0xff6347
                 };
                 this.baseColor.setHex(colors[newType] || 0xffffff);
                 this.mesh.material.color.copy(this.baseColor);
@@ -1979,10 +2020,12 @@
     function switchCharacter() {
         if(!playerRobot) return;
         const types = [
-            'INVADER', 'GHOST', 'SHIP', 'TANK', 'GLIDER', 
+            'INVADER', 'GHOST', 'SHIP', 'TANK', 'GLIDER',
             'PLUMBER', 'FACE', 'SWORD', 'BLOCK', 'PONG',
             'DISK', 'BUG', 'HEART', 'KEY', 'EYE',
-            'MECH', 'ALIEN', 'SAMURAI', 'CYBORG', 'DRAGON'
+            'MECH', 'ALIEN', 'SAMURAI', 'CYBORG', 'DRAGON',
+            'GLYPH', 'STRAWBERRY', 'APPLE', 'ORANGE', 'GRAPE',
+            'KING', 'QUEEN', 'ACE', 'JACK'
         ];
         const currentIdx = types.indexOf(playerRobot.type);
         const nextIdx = (currentIdx + 1) % types.length;
@@ -2174,6 +2217,22 @@
         setTimeout(() => audioSystem.playTone(800, 'sine', 0.1, 0.3), 0);
         setTimeout(() => audioSystem.playTone(1000, 'sine', 0.1, 0.3), 100);
         setTimeout(() => audioSystem.playTone(1200, 'sine', 0.2, 0.4), 200);
+
+        // Warn about approaching dimension portal on odd levels
+        if (level % 2 === 1 && currentDimension < 20) {
+            const nextDimension = currentDimension + 1;
+            const dimName = DIMENSIONS[nextDimension - 1].name;
+            const warnings = [
+                `Dimensional rift detected. ${dimName} approaching.`,
+                `Space-time anomaly forming. ${dimName} imminent.`,
+                `Portal matrix stabilizing. ${dimName} incoming.`,
+                `Quantum signature detected. ${dimName} near.`,
+                `Dimensional gateway manifesting. ${dimName} ahead.`
+            ];
+            setTimeout(() => {
+                audioSystem.speak(warnings[Math.floor(Math.random() * warnings.length)], 0.95, true);
+            }, 2000);
+        }
 
         // Spawn a portal every 2 levels (up to dimension 20) - more frequent for easier testing
         if (level % 2 === 0 && currentDimension < 20 && !portalActive) {
