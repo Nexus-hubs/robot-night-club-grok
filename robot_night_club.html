@@ -326,8 +326,8 @@
     // --- Configuration ---
     const CONFIG = {
         voxelSize: 0.15,
-        accel: 180.0,       // Increased for faster movement
-        friction: 3.5,      // Reduced for smoother movement
+        accel: 220.0,       // Further increased for faster movement
+        friction: 3.0,      // Further reduced for smoother, more fluid movement
         // Reduce bloom on mobile for better performance
         bloomStrength: isMobile ? 0.6 : 1.5,
         bloomRadius: isMobile ? 0.25 : 0.6,
@@ -360,8 +360,12 @@
     let lightCycles = [];
     let tanks = [];
     let drones = [];
+    let ghosts = [];
+    let invaders = [];
+    let goombas = [];
+    let creepers = [];
 
-    // Dimension Configurations - 20 unique dimensions
+    // Dimension Configurations - 30 unique dimensions
     const DIMENSIONS = [
         { id: 1, name: "Neon Genesis", color: 0x00ffff, enemyColor: 0xff00ff, musicTempo: 120, enemySpeed: 1.0, theme: "cyber" },
         { id: 2, name: "Crimson Void", color: 0xff0000, enemyColor: 0xffaa00, musicTempo: 140, enemySpeed: 1.2, theme: "fire" },
@@ -382,7 +386,17 @@
         { id: 17, name: "Electric Storm", color: 0xffff00, enemyColor: 0xffaa00, musicTempo: 155, enemySpeed: 1.5, theme: "electric" },
         { id: 18, name: "Deep Space", color: 0x000055, enemyColor: 0x0000aa, musicTempo: 85, enemySpeed: 1.8, theme: "space" },
         { id: 19, name: "Quantum Flux", color: 0xaa00ff, enemyColor: 0xff00aa, musicTempo: 165, enemySpeed: 1.9, theme: "quantum" },
-        { id: 20, name: "Final Dimension", color: 0xffffff, enemyColor: 0x000000, musicTempo: 180, enemySpeed: 2.0, theme: "final" }
+        { id: 20, name: "Final Dimension", color: 0xffffff, enemyColor: 0x000000, musicTempo: 180, enemySpeed: 2.0, theme: "final" },
+        { id: 21, name: "Amber Twilight", color: 0xff8800, enemyColor: 0xffcc00, musicTempo: 128, enemySpeed: 1.25, theme: "sunset" },
+        { id: 22, name: "Nebula Storm", color: 0x6600cc, enemyColor: 0xaa00ff, musicTempo: 133, enemySpeed: 1.35, theme: "cosmic" },
+        { id: 23, name: "Crystal Cave", color: 0x00ccaa, enemyColor: 0x00ffcc, musicTempo: 108, enemySpeed: 1.15, theme: "crystal" },
+        { id: 24, name: "Inferno Gates", color: 0xff0033, enemyColor: 0xff6633, musicTempo: 175, enemySpeed: 1.95, theme: "hell" },
+        { id: 25, name: "Midnight Ocean", color: 0x003366, enemyColor: 0x0066aa, musicTempo: 98, enemySpeed: 1.05, theme: "deep_sea" },
+        { id: 26, name: "Neon Jungle", color: 0x33ff33, enemyColor: 0x66ff00, musicTempo: 122, enemySpeed: 1.22, theme: "jungle" },
+        { id: 27, name: "Desert Mirage", color: 0xffcc66, enemyColor: 0xffaa33, musicTempo: 112, enemySpeed: 1.12, theme: "desert" },
+        { id: 28, name: "Arctic Aurora", color: 0x66ffcc, enemyColor: 0x99ffee, musicTempo: 88, enemySpeed: 0.95, theme: "arctic" },
+        { id: 29, name: "Cyber Wasteland", color: 0x888888, enemyColor: 0xaaaaaa, musicTempo: 168, enemySpeed: 1.88, theme: "wasteland" },
+        { id: 30, name: "Eternal Ascension", color: 0xffffff, enemyColor: 0xffffaa, musicTempo: 200, enemySpeed: 2.5, theme: "heaven" }
     ];
     let mcpEntity; 
     
@@ -410,6 +424,9 @@
     // Power-up system
     let speedBoostTimer = 0;
     let shieldTimer = 0;
+    let invincibilityTimer = 0;
+    let megaSpeedTimer = 0;
+    let timeStopTimer = 0;
 
     // FPS Monitoring for dynamic quality adjustment
     let frameCount = 0;
@@ -1123,7 +1140,10 @@
                 if (this.expressionTimer <= 0) this.setExpression('NORMAL');
             }
             const angle = cameraRotY;
-            const speedMultiplier = speedBoostTimer > 0 ? 2.0 : 1.0;
+            // Stack speed multipliers from different power-ups
+            let speedMultiplier = 1.0;
+            if (speedBoostTimer > 0) speedMultiplier = 2.0;
+            if (megaSpeedTimer > 0) speedMultiplier = 3.0; // Mega speed overrides normal speed boost
 
             // Extra speed boost on mobile for easier control
             const mobileMultiplier = isMobile ? 1.3 : 1.0;
@@ -1151,6 +1171,9 @@
             const trailChance = isMobile ? 0.1 : 0.3;
             if (speedBoostTimer > 0 && speed > 2.0 && Math.random() < trailChance) {
                 createTrailParticle(this.mesh.position, 0x00ffaa, this.velocity);
+            }
+            if (megaSpeedTimer > 0 && speed > 2.0 && Math.random() < trailChance * 1.5) {
+                createTrailParticle(this.mesh.position, 0xff00ff, this.velocity);
             }
             const relativeVelX = this.velocity.x * Math.cos(angle) - this.velocity.z * Math.sin(angle);
             this.mesh.rotation.z = -relativeVelX * 0.05; 
@@ -1185,6 +1208,25 @@
                 case 'MULTIPLIER':
                     material = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xffaa00, emissiveIntensity: 0.5 });
                     glowColor = 0xffaa00;
+                    break;
+                case 'HEALTH':
+                    material = new THREE.MeshStandardMaterial({ color: 0xff0066, emissive: 0xff0066, emissiveIntensity: 0.5 });
+                    glowColor = 0xff0066;
+                    break;
+                case 'INVINCIBILITY':
+                    material = new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0xffff00, emissiveIntensity: 0.5 });
+                    glowColor = 0xffff00;
+                    this.duration = 8; // Shorter duration for invincibility
+                    break;
+                case 'MEGASPEED':
+                    material = new THREE.MeshStandardMaterial({ color: 0xff00ff, emissive: 0xff00ff, emissiveIntensity: 0.5 });
+                    glowColor = 0xff00ff;
+                    this.duration = 7;
+                    break;
+                case 'TIMESTOP':
+                    material = new THREE.MeshStandardMaterial({ color: 0x00ddff, emissive: 0x00ddff, emissiveIntensity: 0.5 });
+                    glowColor = 0x00ddff;
+                    this.duration = 5; // Short but powerful
                     break;
             }
 
@@ -1249,6 +1291,39 @@
                     audioSystem.speak("Score multiplier activated", 1.2);
                     audioSystem.playTone(600, 'square', 0.2, 0.3);
                     break;
+                case 'HEALTH':
+                    health = Math.min(100, health + 30);
+                    powerDot.style.background = '#ff0066';
+                    powerDot.style.boxShadow = '0 0 10px #ff0066';
+                    powerText.innerText = 'HEALTH RESTORED';
+                    audioSystem.speak("Health restored", 1.2);
+                    audioSystem.playTone(900, 'sine', 0.2, 0.3);
+                    document.getElementById('health-fill').style.width = health + '%';
+                    break;
+                case 'INVINCIBILITY':
+                    invincibilityTimer = this.duration;
+                    powerDot.style.background = '#ffff00';
+                    powerDot.style.boxShadow = '0 0 10px #ffff00';
+                    powerText.innerText = 'INVINCIBILITY';
+                    audioSystem.speak("Invincibility activated", 1.2);
+                    audioSystem.playTone(1400, 'square', 0.2, 0.3);
+                    break;
+                case 'MEGASPEED':
+                    megaSpeedTimer = this.duration;
+                    powerDot.style.background = '#ff00ff';
+                    powerDot.style.boxShadow = '0 0 10px #ff00ff';
+                    powerText.innerText = 'MEGA SPEED';
+                    audioSystem.speak("Mega speed activated", 1.2);
+                    audioSystem.playTone(1600, 'sawtooth', 0.2, 0.3);
+                    break;
+                case 'TIMESTOP':
+                    timeStopTimer = this.duration;
+                    powerDot.style.background = '#00ddff';
+                    powerDot.style.boxShadow = '0 0 10px #00ddff';
+                    powerText.innerText = 'TIME STOP';
+                    audioSystem.speak("Time stop activated", 0.5);
+                    audioSystem.playTone(400, 'sine', 0.2, 0.5);
+                    break;
             }
 
             powerStatus.style.display = 'flex';
@@ -1257,8 +1332,8 @@
     }
 
     function createPowerUps() {
-        // More power-ups with emphasis on speed pills
-        const types = ['SPEED', 'SPEED', 'SHIELD', 'MULTIPLIER', 'SPEED'];
+        // More power-ups with variety of types
+        const types = ['SPEED', 'SPEED', 'SHIELD', 'MULTIPLIER', 'HEALTH', 'INVINCIBILITY', 'MEGASPEED', 'TIMESTOP', 'SPEED', 'HEALTH'];
         for (let i = 0; i < types.length; i++) {
             const powerUp = new PowerUp(types[i]);
             powerUps.push(powerUp);
@@ -1393,6 +1468,15 @@
                 scoreMultiplier = 1;
             }
         }
+        if (invincibilityTimer > 0) {
+            invincibilityTimer -= delta;
+        }
+        if (megaSpeedTimer > 0) {
+            megaSpeedTimer -= delta;
+        }
+        if (timeStopTimer > 0) {
+            timeStopTimer -= delta;
+        }
 
         // Respawn collected power-ups
         powerUps.forEach((powerUp, index) => {
@@ -1400,8 +1484,8 @@
 
             if (powerUp.collected && clock.elapsedTime - powerUp.spawnTime > 15) {
                 // Respawn after 15 seconds
-                const types = ['SPEED', 'SHIELD', 'MULTIPLIER'];
-                const newPowerUp = new PowerUp(types[index % 3]);
+                const types = ['SPEED', 'SHIELD', 'MULTIPLIER', 'HEALTH', 'INVINCIBILITY', 'MEGASPEED', 'TIMESTOP'];
+                const newPowerUp = new PowerUp(types[index % types.length]);
                 powerUps[index] = newPowerUp;
                 scene.add(newPowerUp.mesh);
             }
@@ -1608,6 +1692,337 @@
         }
     }
 
+    // Pac-Man Ghost Enemy (inspired by Pac-Man)
+    class PacManGhost {
+        constructor() {
+            this.mesh = new THREE.Group();
+            const ghostColors = [0xff0000, 0xff66aa, 0x00ffff, 0xffaa00];
+            this.color = ghostColors[Math.floor(Math.random() * ghostColors.length)];
+
+            // Ghost body (sphere for top)
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: this.color,
+                emissive: this.color,
+                emissiveIntensity: 0.3
+            });
+            const body = new THREE.Mesh(new THREE.SphereGeometry(2, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), bodyMat);
+            body.position.y = 2;
+            this.mesh.add(body);
+
+            // Ghost bottom (cylinder)
+            const bottom = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 2, 16, 1, true), bodyMat);
+            bottom.position.y = 1;
+            this.mesh.add(bottom);
+
+            // Eyes
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const pupilMat = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+            const eyeGeo = new THREE.SphereGeometry(0.5, 8, 8);
+            const pupilGeo = new THREE.SphereGeometry(0.25, 8, 8);
+
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.7, 2.5, 1.5);
+            this.mesh.add(leftEye);
+            const leftPupil = new THREE.Mesh(pupilGeo, pupilMat);
+            leftPupil.position.set(-0.7, 2.5, 1.8);
+            this.mesh.add(leftPupil);
+
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.7, 2.5, 1.5);
+            this.mesh.add(rightEye);
+            const rightPupil = new THREE.Mesh(pupilGeo, pupilMat);
+            rightPupil.position.set(0.7, 2.5, 1.8);
+            this.mesh.add(rightPupil);
+
+            this.mesh.position.set((Math.random()-0.5)*120, 0, (Math.random()-0.5)*120);
+            this.speed = 15;
+            this.state = 'CHASE';
+            this.stateTimer = 0;
+        }
+
+        update(delta, playerPos) {
+            this.stateTimer -= delta;
+
+            // Random state changes (chase or flee like in Pac-Man)
+            if (this.stateTimer <= 0) {
+                this.state = Math.random() > 0.3 ? 'CHASE' : 'FLEE';
+                this.stateTimer = 3 + Math.random() * 3;
+            }
+
+            const direction = new THREE.Vector3().subVectors(
+                this.state === 'CHASE' ? playerPos : this.mesh.position,
+                this.state === 'CHASE' ? this.mesh.position : playerPos
+            );
+            direction.y = 0;
+            direction.normalize();
+
+            this.mesh.position.add(direction.multiplyScalar(this.speed * delta));
+            this.mesh.lookAt(this.state === 'CHASE' ? playerPos : this.mesh.position.clone().sub(direction));
+
+            // Floating animation
+            this.mesh.position.y = Math.sin(clock.elapsedTime * 2 + this.mesh.position.x) * 0.5 + 0.5;
+        }
+    }
+
+    // Space Invader Enemy (inspired by Space Invaders)
+    class SpaceInvader {
+        constructor() {
+            this.mesh = new THREE.Group();
+
+            // Pixelated Space Invader design
+            const blockMat = new THREE.MeshStandardMaterial({
+                color: 0x00ff00,
+                emissive: 0x00ff00,
+                emissiveIntensity: 0.4
+            });
+            const blockSize = 0.5;
+
+            // Classic Space Invader shape pattern (using 8x8 grid pattern)
+            const pattern = [
+                [0,0,1,0,0,0,1,0,0],
+                [0,0,0,1,0,1,0,0,0],
+                [0,0,1,1,1,1,1,0,0],
+                [0,1,1,0,1,0,1,1,0],
+                [0,1,1,1,1,1,1,1,0],
+                [0,0,1,0,0,0,1,0,0],
+                [0,1,0,1,0,1,0,1,0],
+                [1,0,1,0,0,0,1,0,1]
+            ];
+
+            const blockGeo = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
+            for (let y = 0; y < pattern.length; y++) {
+                for (let x = 0; x < pattern[y].length; x++) {
+                    if (pattern[y][x] === 1) {
+                        const block = new THREE.Mesh(blockGeo, blockMat);
+                        block.position.set((x - 4) * blockSize, (7 - y) * blockSize + 2, 0);
+                        this.mesh.add(block);
+                    }
+                }
+            }
+
+            this.mesh.position.set((Math.random()-0.5)*100, 5, (Math.random()-0.5)*100);
+            this.speed = 10;
+            this.direction = 1;
+            this.moveTimer = 0;
+            this.fireTimer = 0;
+        }
+
+        update(delta, playerPos) {
+            // Side-to-side movement like classic Space Invaders
+            this.moveTimer += delta;
+            if (this.moveTimer > 1.0) {
+                this.moveTimer = 0;
+                this.direction *= -1;
+            }
+
+            this.mesh.position.x += this.speed * delta * this.direction;
+
+            // Slowly advance towards player
+            const dirToPlayer = new THREE.Vector3().subVectors(playerPos, this.mesh.position);
+            dirToPlayer.y = 0;
+            dirToPlayer.normalize();
+            this.mesh.position.add(dirToPlayer.multiplyScalar(this.speed * 0.3 * delta));
+
+            // Look at player
+            this.mesh.lookAt(playerPos);
+
+            // Fire projectiles
+            this.fireTimer -= delta;
+            if (this.fireTimer <= 0 && this.mesh.position.distanceTo(playerPos) < 50) {
+                this.fire(playerPos);
+                this.fireTimer = 2.5;
+            }
+        }
+
+        fire(target) {
+            const laserMat = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+            const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -10, 0)];
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            const laser = new THREE.Line(geo, laserMat);
+            laser.position.copy(this.mesh.position);
+            scene.add(laser);
+            setTimeout(() => scene.remove(laser), 200);
+            audioSystem.playTone(150, 'square', 0.1, 0.2);
+        }
+    }
+
+    // Goomba Enemy (inspired by Super Mario)
+    class Goomba {
+        constructor() {
+            this.mesh = new THREE.Group();
+
+            // Brown mushroom body
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const body = new THREE.Mesh(new THREE.SphereGeometry(1.5, 16, 16), bodyMat);
+            body.position.y = 1.5;
+            body.scale.y = 0.8;
+            this.mesh.add(body);
+
+            // Mushroom cap
+            const capMat = new THREE.MeshStandardMaterial({ color: 0xA0522D });
+            const cap = new THREE.Mesh(new THREE.SphereGeometry(1.8, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), capMat);
+            cap.position.y = 2.5;
+            this.mesh.add(cap);
+
+            // Eyes
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const pupilMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const eyeGeo = new THREE.SphereGeometry(0.3, 8, 8);
+            const pupilGeo = new THREE.SphereGeometry(0.15, 8, 8);
+
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.5, 1.8, 1.2);
+            this.mesh.add(leftEye);
+            const leftPupil = new THREE.Mesh(pupilGeo, pupilMat);
+            leftPupil.position.set(-0.5, 1.8, 1.4);
+            this.mesh.add(leftPupil);
+
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.5, 1.8, 1.2);
+            this.mesh.add(rightEye);
+            const rightPupil = new THREE.Mesh(pupilGeo, pupilMat);
+            rightPupil.position.set(0.5, 1.8, 1.4);
+            this.mesh.add(rightPupil);
+
+            // Feet
+            const feetMat = new THREE.MeshStandardMaterial({ color: 0x654321 });
+            const footGeo = new THREE.SphereGeometry(0.5, 8, 8);
+            const leftFoot = new THREE.Mesh(footGeo, feetMat);
+            leftFoot.position.set(-0.7, 0.3, 0);
+            this.mesh.add(leftFoot);
+            const rightFoot = new THREE.Mesh(footGeo, feetMat);
+            rightFoot.position.set(0.7, 0.3, 0);
+            this.mesh.add(rightFoot);
+
+            this.mesh.position.set((Math.random()-0.5)*110, 0, (Math.random()-0.5)*110);
+            this.speed = 8;
+            this.direction = Math.random() * Math.PI * 2;
+        }
+
+        update(delta) {
+            // Simple walking pattern
+            this.mesh.position.x += Math.cos(this.direction) * this.speed * delta;
+            this.mesh.position.z += Math.sin(this.direction) * this.speed * delta;
+
+            // Change direction randomly
+            if (Math.random() < 0.02) {
+                this.direction = Math.random() * Math.PI * 2;
+            }
+
+            // Bounce at boundaries
+            if (Math.abs(this.mesh.position.x) > 140 || Math.abs(this.mesh.position.z) > 140) {
+                this.direction += Math.PI;
+            }
+
+            this.mesh.rotation.y = this.direction;
+
+            // Waddle animation
+            this.mesh.rotation.z = Math.sin(clock.elapsedTime * 5) * 0.1;
+        }
+    }
+
+    // Creeper Enemy (inspired by Minecraft)
+    class Creeper {
+        constructor() {
+            this.mesh = new THREE.Group();
+
+            // Green pixelated body
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x00aa00 });
+            const darkMat = new THREE.MeshStandardMaterial({ color: 0x006600 });
+
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), bodyMat);
+            head.position.y = 3;
+            this.mesh.add(head);
+
+            // Face pattern
+            const pixelGeo = new THREE.BoxGeometry(0.4, 0.4, 0.1);
+            // Eyes
+            const leftEye1 = new THREE.Mesh(pixelGeo, darkMat);
+            leftEye1.position.set(-0.5, 3.3, 1.05);
+            this.mesh.add(leftEye1);
+            const leftEye2 = new THREE.Mesh(pixelGeo, darkMat);
+            leftEye2.position.set(-0.5, 2.9, 1.05);
+            this.mesh.add(leftEye2);
+
+            const rightEye1 = new THREE.Mesh(pixelGeo, darkMat);
+            rightEye1.position.set(0.5, 3.3, 1.05);
+            this.mesh.add(rightEye1);
+            const rightEye2 = new THREE.Mesh(pixelGeo, darkMat);
+            rightEye2.position.set(0.5, 2.9, 1.05);
+            this.mesh.add(rightEye2);
+
+            // Mouth
+            const mouth1 = new THREE.Mesh(pixelGeo, darkMat);
+            mouth1.position.set(0, 2.5, 1.05);
+            this.mesh.add(mouth1);
+            const mouth2 = new THREE.Mesh(pixelGeo, darkMat);
+            mouth2.position.set(-0.5, 2.1, 1.05);
+            this.mesh.add(mouth2);
+            const mouth3 = new THREE.Mesh(pixelGeo, darkMat);
+            mouth3.position.set(0.5, 2.1, 1.05);
+            this.mesh.add(mouth3);
+
+            // Body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3, 0.8), bodyMat);
+            body.position.y = 1.5;
+            this.mesh.add(body);
+
+            // Legs
+            const legGeo = new THREE.BoxGeometry(0.5, 1, 0.5);
+            const leg1 = new THREE.Mesh(legGeo, bodyMat);
+            leg1.position.set(-0.4, 0.5, -0.2);
+            this.mesh.add(leg1);
+            const leg2 = new THREE.Mesh(legGeo, bodyMat);
+            leg2.position.set(0.4, 0.5, -0.2);
+            this.mesh.add(leg2);
+            const leg3 = new THREE.Mesh(legGeo, bodyMat);
+            leg3.position.set(-0.4, 0.5, 0.3);
+            this.mesh.add(leg3);
+            const leg4 = new THREE.Mesh(legGeo, bodyMat);
+            leg4.position.set(0.4, 0.5, 0.3);
+            this.mesh.add(leg4);
+
+            this.mesh.position.set((Math.random()-0.5)*120, 0, (Math.random()-0.5)*120);
+            this.speed = 12;
+            this.explodeTimer = 0;
+            this.exploding = false;
+        }
+
+        update(delta, playerPos) {
+            const dist = this.mesh.position.distanceTo(playerPos);
+
+            // Chase player
+            const direction = new THREE.Vector3().subVectors(playerPos, this.mesh.position);
+            direction.y = 0;
+            direction.normalize();
+            this.mesh.position.add(direction.multiplyScalar(this.speed * delta));
+            this.mesh.lookAt(playerPos);
+
+            // Start exploding when close to player
+            if (dist < 8 && !this.exploding) {
+                this.exploding = true;
+                this.explodeTimer = 1.5; // Explosion countdown
+            }
+
+            if (this.exploding) {
+                this.explodeTimer -= delta;
+                // Flash effect
+                const flashIntensity = Math.sin(clock.elapsedTime * 20) * 0.5 + 0.5;
+                this.mesh.children.forEach(child => {
+                    if (child.material) {
+                        child.material.emissive = new THREE.Color(0xffffff);
+                        child.material.emissiveIntensity = flashIntensity;
+                    }
+                });
+
+                // Shake
+                this.mesh.position.x += (Math.random() - 0.5) * 0.2;
+                this.mesh.position.z += (Math.random() - 0.5) * 0.2;
+            }
+        }
+    }
+
     // Dimensional Portal Class
     class DimensionalPortal {
         constructor(dimension) {
@@ -1779,6 +2194,42 @@
             const drone = new FlyingDrone();
             drones.push(drone);
             scene.add(drone.mesh);
+        }
+    }
+
+    function createGhosts() {
+        const ghostCount = isMobile ? 2 : 4;
+        for(let i=0; i<ghostCount; i++) {
+            const ghost = new PacManGhost();
+            ghosts.push(ghost);
+            scene.add(ghost.mesh);
+        }
+    }
+
+    function createInvaders() {
+        const invaderCount = isMobile ? 2 : 3;
+        for(let i=0; i<invaderCount; i++) {
+            const invader = new SpaceInvader();
+            invaders.push(invader);
+            scene.add(invader.mesh);
+        }
+    }
+
+    function createGoombas() {
+        const goombaCount = isMobile ? 3 : 5;
+        for(let i=0; i<goombaCount; i++) {
+            const goomba = new Goomba();
+            goombas.push(goomba);
+            scene.add(goomba.mesh);
+        }
+    }
+
+    function createCreepers() {
+        const creeperCount = isMobile ? 1 : 2;
+        for(let i=0; i<creeperCount; i++) {
+            const creeper = new Creeper();
+            creepers.push(creeper);
+            scene.add(creeper.mesh);
         }
     }
 
@@ -2099,7 +2550,7 @@
     }
 
     function enterDimension(dimension) {
-        if (dimension > 20) {
+        if (dimension > 30) {
             // Beat the game!
             audioSystem.speak("You have conquered all dimensions!", 1.0);
             winGame();
@@ -2130,6 +2581,14 @@
         drones = [];
         lightCycles.forEach(cycle => scene.remove(cycle.mesh));
         lightCycles = [];
+        ghosts.forEach(ghost => scene.remove(ghost.mesh));
+        ghosts = [];
+        invaders.forEach(invader => scene.remove(invader.mesh));
+        invaders = [];
+        goombas.forEach(goomba => scene.remove(goomba.mesh));
+        goombas = [];
+        creepers.forEach(creeper => scene.remove(creeper.mesh));
+        creepers = [];
 
         // Spawn new enemies with dimension-specific properties
         spawnDimensionEnemies(dimConfig);
@@ -2187,6 +2646,38 @@
             const cycle = new LightCycle(dimConfig.enemyColor, i % 2 === 0 ? 'x' : 'z');
             lightCycles.push(cycle);
             scene.add(cycle.mesh);
+        }
+
+        // Spawn Pac-Man ghosts
+        const ghostCount = isMobile ? 1 : Math.floor(2 + dimConfig.id * 0.2);
+        for (let i = 0; i < ghostCount; i++) {
+            const ghost = new PacManGhost();
+            ghosts.push(ghost);
+            scene.add(ghost.mesh);
+        }
+
+        // Spawn Space Invaders
+        const invaderCount = isMobile ? 1 : Math.floor(1 + dimConfig.id * 0.2);
+        for (let i = 0; i < invaderCount; i++) {
+            const invader = new SpaceInvader();
+            invaders.push(invader);
+            scene.add(invader.mesh);
+        }
+
+        // Spawn Goombas
+        const goombaCount = isMobile ? 2 : Math.floor(3 + dimConfig.id * 0.3);
+        for (let i = 0; i < goombaCount; i++) {
+            const goomba = new Goomba();
+            goombas.push(goomba);
+            scene.add(goomba.mesh);
+        }
+
+        // Spawn Creepers (fewer due to their dangerous explosion mechanic)
+        const creeperCount = isMobile ? 1 : Math.floor(1 + dimConfig.id * 0.15);
+        for (let i = 0; i < creeperCount; i++) {
+            const creeper = new Creeper();
+            creepers.push(creeper);
+            scene.add(creeper.mesh);
         }
     }
 
@@ -2287,6 +2778,14 @@
         drones = [];
         lightCycles.forEach(cycle => scene.remove(cycle.mesh));
         lightCycles = [];
+        ghosts.forEach(ghost => scene.remove(ghost.mesh));
+        ghosts = [];
+        invaders.forEach(invader => scene.remove(invader.mesh));
+        invaders = [];
+        goombas.forEach(goomba => scene.remove(goomba.mesh));
+        goombas = [];
+        creepers.forEach(creeper => scene.remove(creeper.mesh));
+        creepers = [];
 
         // Start in dimension 1
         const dim1Config = DIMENSIONS[0];
@@ -2391,6 +2890,23 @@
                 if(e.update && e instanceof FlyingDrone) e.update(delta, playerRobot.mesh.position);
             });
 
+            // Update new enemy types
+            const timeStopActive = timeStopTimer > 0;
+            const timeScale = timeStopActive ? 0.1 : 1.0; // Slow down enemies during time stop
+
+            ghosts.forEach(ghost => {
+                if (ghost.update) ghost.update(delta * timeScale, playerRobot.mesh.position);
+            });
+            invaders.forEach(invader => {
+                if (invader.update) invader.update(delta * timeScale, playerRobot.mesh.position);
+            });
+            goombas.forEach(goomba => {
+                if (goomba.update) goomba.update(delta * timeScale);
+            });
+            creepers.forEach(creeper => {
+                if (creeper.update) creeper.update(delta * timeScale, playerRobot.mesh.position);
+            });
+
             // Handle tank collision - push to corner with decomposition
             function handleTankCollision(player, tankMesh) {
                 // Slight push away from tank instead of teleporting to corner
@@ -2466,17 +2982,55 @@
                     if (isTank) {
                         // Special tank collision - push to corner with decomposition
                         handleTankCollision(playerRobot, enemyMesh);
-                    } else if (shieldTimer <= 0) {
+                    } else if (shieldTimer <= 0 && invincibilityTimer <= 0) {
                         // Other enemies - just sad face
                         playerRobot.setExpression('SAD');
                         audioSystem.speak("Ouch!", 1.5);
                         audioSystem.playTone(200, 'sawtooth', 0.2, 0.4);
                     } else {
-                        // Shield blocks damage - no collision resolution, just visual feedback
-                        createParticleBurst(playerRobot.mesh.position, 0x0088ff, 8, 3);
-                        audioSystem.speak("Shield protected me!", 1.5);
+                        // Shield/invincibility blocks damage - no collision resolution, just visual feedback
+                        createParticleBurst(playerRobot.mesh.position, invincibilityTimer > 0 ? 0xffff00 : 0x0088ff, 8, 3);
+                        audioSystem.speak(invincibilityTimer > 0 ? "Invincible!" : "Shield protected me!", 1.5);
                         audioSystem.playTone(1000, 'triangle', 0.1, 0.2);
                     }
+                }
+            });
+
+            // Check new enemy collisions
+            [...ghosts, ...invaders, ...goombas].forEach((e) => {
+                const enemyMesh = e.mesh;
+                if(enemyMesh && CollisionSystem.checkSphereCollision(
+                    enemyMesh.position, 2.0,
+                    playerRobot.mesh.position, 2.0
+                )) {
+                    if (shieldTimer <= 0 && invincibilityTimer <= 0) {
+                        health = Math.max(0, health - 5);
+                        document.getElementById('health-fill').style.width = health + '%';
+                        playerRobot.setExpression('SAD');
+                        createParticleBurst(playerRobot.mesh.position, 0xff0000, 5, 2);
+                        audioSystem.playTone(200, 'sawtooth', 0.1, 0.2);
+                    } else {
+                        createParticleBurst(playerRobot.mesh.position, invincibilityTimer > 0 ? 0xffff00 : 0x0088ff, 8, 3);
+                    }
+                }
+            });
+
+            // Check Creeper collisions (explosive)
+            creepers.forEach((creeper) => {
+                if (creeper.exploding && creeper.explodeTimer <= 0) {
+                    // Creeper explodes
+                    const dist = creeper.mesh.position.distanceTo(playerRobot.mesh.position);
+                    if (dist < 15 && invincibilityTimer <= 0) {
+                        const damage = Math.floor(30 * (1 - dist / 15)); // More damage closer to explosion
+                        health = Math.max(0, health - damage);
+                        document.getElementById('health-fill').style.width = health + '%';
+                        createParticleBurst(creeper.mesh.position, 0xff6600, 30, 10);
+                        audioSystem.speak("Boom!", 1.0);
+                        audioSystem.playTone(80, 'sawtooth', 0.8, 0.5);
+                    }
+                    // Remove exploded creeper
+                    scene.remove(creeper.mesh);
+                    creepers.splice(creepers.indexOf(creeper), 1);
                 }
             });
 
