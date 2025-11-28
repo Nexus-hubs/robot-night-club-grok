@@ -364,6 +364,7 @@
     let invaders = [];
     let goombas = [];
     let creepers = [];
+    let blackHoles = [];
 
     // Dimension Configurations - 30 unique dimensions
     const DIMENSIONS = [
@@ -420,6 +421,8 @@
     let currentDimension = 1;
     let portal = null;
     let portalActive = false;
+    let portalSpawnTime = 0;
+    const PORTAL_TIMEOUT = 30; // Portal disappears after 30 seconds
 
     // Power-up system
     let speedBoostTimer = 0;
@@ -814,6 +817,7 @@
 
         createCursors(); // RESTORED VECTOR CURSORS
         createPowerUps();
+        createBlackHoles(); // Create black holes on the floor
 
         // Initialize dimension 1 (Neon Genesis)
         const dim1Config = DIMENSIONS[0];
@@ -1699,39 +1703,39 @@
             const ghostColors = [0xff0000, 0xff66aa, 0x00ffff, 0xffaa00];
             this.color = ghostColors[Math.floor(Math.random() * ghostColors.length)];
 
-            // Ghost body (sphere for top)
+            // Ghost body (sphere for top) - Made smaller (half size)
             const bodyMat = new THREE.MeshStandardMaterial({
                 color: this.color,
                 emissive: this.color,
                 emissiveIntensity: 0.3
             });
-            const body = new THREE.Mesh(new THREE.SphereGeometry(2, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), bodyMat);
-            body.position.y = 2;
+            const body = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), bodyMat);
+            body.position.y = 1;
             this.mesh.add(body);
 
-            // Ghost bottom (cylinder)
-            const bottom = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 2, 16, 1, true), bodyMat);
-            bottom.position.y = 1;
+            // Ghost bottom (cylinder) - Made smaller
+            const bottom = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 16, 1, true), bodyMat);
+            bottom.position.y = 0.5;
             this.mesh.add(bottom);
 
-            // Eyes
+            // Eyes - Made proportionally smaller
             const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
             const pupilMat = new THREE.MeshBasicMaterial({ color: 0x0000ff });
-            const eyeGeo = new THREE.SphereGeometry(0.5, 8, 8);
-            const pupilGeo = new THREE.SphereGeometry(0.25, 8, 8);
+            const eyeGeo = new THREE.SphereGeometry(0.25, 8, 8);
+            const pupilGeo = new THREE.SphereGeometry(0.125, 8, 8);
 
             const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-            leftEye.position.set(-0.7, 2.5, 1.5);
+            leftEye.position.set(-0.35, 1.25, 0.75);
             this.mesh.add(leftEye);
             const leftPupil = new THREE.Mesh(pupilGeo, pupilMat);
-            leftPupil.position.set(-0.7, 2.5, 1.8);
+            leftPupil.position.set(-0.35, 1.25, 0.9);
             this.mesh.add(leftPupil);
 
             const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-            rightEye.position.set(0.7, 2.5, 1.5);
+            rightEye.position.set(0.35, 1.25, 0.75);
             this.mesh.add(rightEye);
             const rightPupil = new THREE.Mesh(pupilGeo, pupilMat);
-            rightPupil.position.set(0.7, 2.5, 1.8);
+            rightPupil.position.set(0.35, 1.25, 0.9);
             this.mesh.add(rightPupil);
 
             this.mesh.position.set((Math.random()-0.5)*120, 0, (Math.random()-0.5)*120);
@@ -2023,6 +2027,90 @@
         }
     }
 
+    // Black Hole Class - transports player to random colorful dimensions
+    class BlackHole {
+        constructor() {
+            this.mesh = new THREE.Group();
+            this.animationTime = 0;
+
+            // Dark center sphere
+            const centerGeo = new THREE.SphereGeometry(2.5, 32, 32);
+            const centerMat = new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                transparent: true,
+                opacity: 0.9
+            });
+            this.center = new THREE.Mesh(centerGeo, centerMat);
+            this.center.rotation.x = Math.PI / 2;
+            this.center.position.y = 0.1; // Just above floor
+            this.mesh.add(this.center);
+
+            // Accretion disk (swirling colors)
+            const diskGeo = new THREE.RingGeometry(2.5, 5, 32);
+            const colors = [0xff00ff, 0x00ffff, 0xffff00, 0xff0088, 0x00ff88];
+            const diskColor = colors[Math.floor(Math.random() * colors.length)];
+            const diskMat = new THREE.MeshBasicMaterial({
+                color: diskColor,
+                transparent: true,
+                opacity: 0.6,
+                side: THREE.DoubleSide
+            });
+            this.disk = new THREE.Mesh(diskGeo, diskMat);
+            this.disk.rotation.x = -Math.PI / 2;
+            this.disk.position.y = 0.2;
+            this.mesh.add(this.disk);
+
+            // Outer glow ring
+            const glowGeo = new THREE.RingGeometry(5, 6, 32);
+            const glowMat = new THREE.MeshBasicMaterial({
+                color: diskColor,
+                transparent: true,
+                opacity: 0.3,
+                side: THREE.DoubleSide
+            });
+            this.glow = new THREE.Mesh(glowGeo, glowMat);
+            this.glow.rotation.x = -Math.PI / 2;
+            this.glow.position.y = 0.15;
+            this.mesh.add(this.glow);
+
+            // Add point light for dramatic effect
+            const light = new THREE.PointLight(diskColor, 1.5, 20);
+            light.position.set(0, 1, 0);
+            this.mesh.add(light);
+
+            // Random position on the floor
+            this.mesh.position.set(
+                (Math.random() - 0.5) * 200,
+                0,
+                (Math.random() - 0.5) * 200
+            );
+
+            this.diskColor = diskColor;
+        }
+
+        update(delta) {
+            this.animationTime += delta;
+
+            // Rotate the accretion disk
+            this.disk.rotation.z += delta * 2;
+            this.glow.rotation.z -= delta * 1.5;
+
+            // Pulsate the center
+            const scale = 1.0 + Math.sin(this.animationTime * 3) * 0.1;
+            this.center.scale.setScalar(scale);
+
+            // Shimmer effect on disk
+            this.disk.material.opacity = 0.5 + Math.sin(this.animationTime * 5) * 0.2;
+        }
+
+        getRandomColorfulDimension() {
+            // Return a random dimension that's more colorful (not dark/void themed)
+            const colorfulDimensions = [1, 2, 3, 5, 8, 10, 11, 12, 16, 17, 21, 22, 23, 26, 27, 28, 30];
+            const randomIndex = Math.floor(Math.random() * colorfulDimensions.length);
+            return colorfulDimensions[randomIndex];
+        }
+    }
+
     // Dimensional Portal Class
     class DimensionalPortal {
         constructor(dimension) {
@@ -2230,6 +2318,15 @@
             const creeper = new Creeper();
             creepers.push(creeper);
             scene.add(creeper.mesh);
+        }
+    }
+
+    function createBlackHoles() {
+        const blackHoleCount = isMobile ? 2 : 3;
+        for(let i=0; i<blackHoleCount; i++) {
+            const blackHole = new BlackHole();
+            blackHoles.push(blackHole);
+            scene.add(blackHole.mesh);
         }
     }
 
@@ -2533,15 +2630,16 @@
     // Portal and Dimension System Functions
     function spawnPortal() {
         // Only spawn if we haven't reached max dimensions and no portal is active
-        if (currentDimension >= 20 || portalActive) return;
+        if (currentDimension >= 30 || portalActive) return;
 
         const nextDimension = currentDimension + 1;
         portal = new DimensionalPortal(nextDimension);
         scene.add(portal.mesh);
         portalActive = true;
+        portalSpawnTime = clock.elapsedTime; // Track when portal was spawned
 
         const dimName = DIMENSIONS[nextDimension - 1].name;
-        audioSystem.speak(`Portal to ${dimName} has opened`, 1.0);
+        audioSystem.speak(`Portal to ${dimName} has opened. Hurry, you have 30 seconds!`, 1.0);
 
         // Portal appearance effect
         setTimeout(() => audioSystem.playTone(400, 'sine', 0.2, 0.5), 0);
@@ -2879,6 +2977,22 @@
             // Update portal animation
             if (portal && portalActive) {
                 portal.update(delta);
+
+                // Check if portal has timed out (30 seconds)
+                const portalAge = clock.elapsedTime - portalSpawnTime;
+                if (portalAge >= PORTAL_TIMEOUT) {
+                    // Portal timeout - remove it
+                    createParticleBurst(portal.mesh.position, 0xff0000, 20, 8);
+                    scene.remove(portal.mesh);
+                    portal = null;
+                    portalActive = false;
+                    audioSystem.speak("Portal closed! Too late!", 1.0);
+                    audioSystem.playTone(200, 'sawtooth', 0.5, 0.5);
+                } else if (portalAge >= PORTAL_TIMEOUT - 5) {
+                    // Warning in last 5 seconds - make portal flash
+                    const flashSpeed = 10;
+                    portal.mesh.visible = Math.floor(clock.elapsedTime * flashSpeed) % 2 === 0;
+                }
             }
 
             // Update enemies
@@ -2905,6 +3019,30 @@
             });
             creepers.forEach(creeper => {
                 if (creeper.update) creeper.update(delta * timeScale, playerRobot.mesh.position);
+            });
+
+            // Update black holes
+            blackHoles.forEach(blackHole => {
+                if (blackHole.update) blackHole.update(delta);
+
+                // Check black hole collision
+                if (CollisionSystem.checkSphereCollision(
+                    blackHole.mesh.position, 6.0,
+                    playerRobot.mesh.position, 2.0
+                )) {
+                    // Transport to random colorful dimension
+                    const randomDim = blackHole.getRandomColorfulDimension();
+                    const dimName = DIMENSIONS[randomDim - 1].name;
+
+                    // Visual effect
+                    createParticleBurst(playerRobot.mesh.position, blackHole.diskColor, 40, 15);
+                    audioSystem.speak(`Warped to ${dimName}!`, 1.2);
+                    audioSystem.playTone(100, 'sine', 0.3, 0.7);
+                    setTimeout(() => audioSystem.playTone(800, 'sine', 0.3, 0.5), 300);
+
+                    // Teleport to new dimension
+                    enterDimension(randomDim);
+                }
             });
 
             // Handle tank collision - push to corner with decomposition
@@ -2999,6 +3137,8 @@
             // Check new enemy collisions
             [...ghosts, ...invaders, ...goombas].forEach((e) => {
                 const enemyMesh = e.mesh;
+                const isGhost = ghosts.includes(e);
+
                 if(enemyMesh && CollisionSystem.checkSphereCollision(
                     enemyMesh.position, 2.0,
                     playerRobot.mesh.position, 2.0
@@ -3008,7 +3148,13 @@
                         document.getElementById('health-fill').style.width = health + '%';
                         playerRobot.setExpression('SAD');
                         createParticleBurst(playerRobot.mesh.position, 0xff0000, 5, 2);
-                        audioSystem.playTone(200, 'sawtooth', 0.1, 0.2);
+
+                        // Special voice for ghosts
+                        if (isGhost) {
+                            audioSystem.speak("Oh no!", 1.2);
+                        } else {
+                            audioSystem.playTone(200, 'sawtooth', 0.1, 0.2);
+                        }
                     } else {
                         createParticleBurst(playerRobot.mesh.position, invincibilityTimer > 0 ? 0xffff00 : 0x0088ff, 8, 3);
                     }
